@@ -1,6 +1,17 @@
 # Every tunable number in the pipeline, each with a note on where its value came from.
 # "Starting value" means a placeholder until it is tuned against our dev labels.
 
+video:
+  # Analyse every Nth frame (every frame is decoded anyway: H.264 frames depend on each other).
+  # Starting value: 3, about 10 frames per second at 29.97 fps; the starter kit notes every
+  # 2nd-3rd frame is usually enough. Decode speed (tools/bench_decode.py) and dev scores decide.
+  stride: 3
+  # Width in pixels of the working image handed to the detector (the full frame is 3840 wide).
+  # Starting value: 1280; decode speed and recall on far-away objects decide.
+  width: 1280
+  # Decoder threads; 0 lets FFmpeg use one per CPU core.
+  decode_threads: 0
+
 postprocess:
   # Applied to every class unless overridden under per_class (same keys, per class id).
   default:
