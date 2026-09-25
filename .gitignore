@@ -1,0 +1,8 @@
+**/samples/
+**/cache/ 
+*.mp4 
+**/outputs/
+**/docs/
+CLAUDE.md
+*.MP4
+.DS_Store
