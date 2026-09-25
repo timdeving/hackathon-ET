@@ -1,0 +1,10 @@
+# Laptops and CI: the runtime dependencies except PyTorch, plus test tools. Enough for the unit
+# tests and the harness smoke test on synthetic data; heavy runs happen on the GPU PC.
+# Keep the bounds in sync with requirements.in.
+numpy>=1.24,<2.3
+scipy>=1.11,<1.16
+opencv-python-headless>=4.8
+av>=12
+pyyaml>=6
+pytest>=8
+ruff>=0.6

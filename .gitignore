@@ -6,3 +6,9 @@
 CLAUDE.md
 *.MP4
 .DS_Store
+# `samples` may be a symlink to the video folder; the rule above only matches directories.
+/samples
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/

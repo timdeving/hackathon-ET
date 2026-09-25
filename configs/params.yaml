@@ -1,0 +1,13 @@
+# Every tunable number in the pipeline, each with a note on where its value came from.
+# "Starting value" means a placeholder until it is tuned against our dev labels.
+
+postprocess:
+  # Applied to every class unless overridden under per_class (same keys, per class id).
+  default:
+    # Join two segments of the same class separated by less than this gap (seconds).
+    # Starting value: the starter kit's advice to merge gaps < 1 s; tune at tIoU 0.7.
+    merge_gap_sec: 1.0
+    # Drop segments shorter than this (seconds). Must stay > 0.
+    # Starting value: the starter kit's advice to drop blips < 0.5 s; tune at tIoU 0.7.
+    min_duration_sec: 0.5
+  per_class: {}

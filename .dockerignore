@@ -1,0 +1,14 @@
+# Keep the build context small and private: no videos, caches, outputs or team docs.
+.git
+.github
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.venv
+samples
+**/cache
+**/outputs
+docs
+CLAUDE.md
+**/*.mp4
+**/*.MP4

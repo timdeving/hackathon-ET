@@ -1,2 +1,3 @@
-numpy>=1.24
-opencv-python-headless>=4.8
+# Placeholder until tools/pin_requirements.sh is run on the GPU PC and replaces this file
+# with fully pinned versions. Until then it installs the direct dependencies unpinned.
+-r requirements.in

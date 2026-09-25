@@ -1,0 +1,19 @@
+# Direct runtime dependencies. requirements.txt is generated from this file by
+# tools/pin_requirements.sh, so every transitive version is pinned for Linux.
+
+# PyTorch CUDA 12.6 builds: CUDA 12 runs on any NVIDIA driver >= 525, while CUDA 13 builds
+# would need >= 580, which the judges' T4 machine may not have. 2.9.1 is the last release
+# before TorchScript (our detector format) started emitting deprecation warnings.
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch==2.9.1+cu126
+torchvision==0.24.1+cu126
+
+# Upper bounds keep Python 3.10 working: the judges only promise Python >= 3.10, and
+# numpy 2.3 / scipy 1.16 dropped it.
+numpy>=1.24,<2.3
+scipy>=1.11,<1.16
+# The harness reads frames with cv2; the headless build needs no system GUI libraries (libGL).
+opencv-python-headless>=4.8
+# PyAV: our video decoder; its wheel bundles FFmpeg, so no system ffmpeg is needed.
+av>=12
+pyyaml>=6
