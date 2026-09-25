@@ -36,7 +36,9 @@ def load_detector(params: Mapping[str, Any], device: str = "cuda") -> Detector:
 
 def _configure_torch() -> None:
     """Deterministic GPU kernels, so runs repeat exactly; and no TF32 (the judges' T4 has none),
-    so an RTX card computes like the T4."""
+    so an RTX card computes like the T4. Inference draws no random numbers; the seed is fixed
+    anyway."""
+    torch.manual_seed(0)
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.allow_tf32 = False

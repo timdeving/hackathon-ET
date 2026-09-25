@@ -1,6 +1,22 @@
 # Every tunable number in the pipeline, each with a note on where its value came from.
 # "Starting value" means a placeholder until it is tuned against our dev labels.
 
+budget:
+  # The harness's limit for Part A + Part B together, as a multiple of the video's duration:
+  # run_submission.py's default, which the official run uses.
+  time_factor: 3.0
+  # Frames OpenCV reads, before Part A starts, to measure how long the harness's Part B
+  # decoding will take on this machine (about 2 s of video).
+  calibration_frames: 60
+  # Multiply that estimate by this, in case the start of a video decodes faster than the rest.
+  # Starting value: check it against the part_b_sec the harness logs on the GPU PC.
+  part_b_safety: 1.2
+  # Part B's own work on top of decoding, as a multiple of the duration: 0 while step() is the
+  # stub; set it when the risk pipeline arrives.
+  part_b_extra_ratio: 0.0
+  # Fraction of the budget left unused, for the harness's own overhead. Starting value.
+  margin_ratio: 0.05
+
 video:
   # Analyse every Nth frame (every frame is decoded anyway: H.264 frames depend on each other).
   # Starting value: 3, about 10 frames per second at 29.97 fps; the starter kit notes every

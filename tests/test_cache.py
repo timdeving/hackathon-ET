@@ -17,7 +17,10 @@ def small_result() -> PerceptionResult:
     tracks = np.zeros(2, dtype=TRACK_DTYPE)
     tracks["frame"], tracks["track_id"], tracks["confirmed"] = [0, 3], [1, 1], [False, True]
     info = VideoInfo(name="v.mp4", fps=29.97, n_frames=6, width=3840, height=2160)
-    return PerceptionResult(info, stride=3, detections=detections, tracks=tracks, seconds=1.25)
+    return PerceptionResult(
+        info, stride=3, detections=detections, tracks=tracks, seconds=1.25, n_analysed=2,
+        complete=True,
+    )
 
 
 def test_a_saved_result_loads_back_unchanged(tmp_path):
@@ -25,6 +28,7 @@ def test_a_saved_result_loads_back_unchanged(tmp_path):
     assert folder == tmp_path / "v.mp4" / settings_version(SETTINGS)
     loaded = load_result(folder)
     assert (loaded.info, loaded.stride) == (small_result().info, 3)
+    assert (loaded.n_analysed, loaded.complete) == (2, True)
     np.testing.assert_array_equal(loaded.detections, small_result().detections)
     np.testing.assert_array_equal(loaded.tracks, small_result().tracks)
 

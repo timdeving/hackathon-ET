@@ -41,6 +41,8 @@ def save_result(result: PerceptionResult, cache_dir: str | Path, settings: dict[
         "video": asdict(result.info),
         "stride": result.stride,
         "seconds": round(result.seconds, 1),
+        "n_analysed": result.n_analysed,
+        "complete": result.complete,
         "settings": settings,
         "git_commit": _git_commit(),
     }
@@ -59,6 +61,8 @@ def load_result(folder: str | Path) -> PerceptionResult:
             detections=tables["detections"],
             tracks=tables["tracks"],
             seconds=meta["seconds"],
+            n_analysed=meta["n_analysed"],
+            complete=meta["complete"],
         )
 
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import time
 
 import numpy as np
 import pytest
@@ -56,6 +57,7 @@ def test_one_object_becomes_one_track_in_full_resolution_pixels(tiny_video):
 
     assert result.info.name == tiny_video.path.name
     assert result.n_analysed == tiny_video.n_frames
+    assert result.complete
     assert result.detections["frame"].tolist() == list(range(tiny_video.n_frames))
     tracks = result.tracks
     assert set(tracks["track_id"].tolist()) == {1}
@@ -76,6 +78,14 @@ def test_tracks_that_are_never_confirmed_are_dropped(tiny_video):
     result = Perception(detector, params_with(stride=1, width=WORKING_WIDTH)).run(tiny_video.path)
     assert len(result.detections) == tiny_video.n_frames + 1  # the blip was detected...
     assert set(result.tracks["track_id"].tolist()) == {1}  # ...but never became a track
+
+
+def test_perception_stops_at_the_deadline(tiny_video):
+    perception = Perception(SquareDetector(), params_with(stride=1, width=WORKING_WIDTH))
+    result = perception.run(tiny_video.path, deadline=time.perf_counter() - 1.0)  # already past
+    assert result.n_analysed == 1
+    assert not result.complete
+    assert result.detections["frame"].tolist() == [0]
 
 
 def test_detector_and_working_width_must_agree():

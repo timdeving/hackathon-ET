@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Mapping
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -73,11 +74,8 @@ class PerceptionResult:
     detections: np.ndarray  # DETECTION_DTYPE rows: every detection the detector kept
     tracks: np.ndarray  # TRACK_DTYPE rows: one per track per analysed frame, confirmed tracks only
     seconds: float  # processing time
-
-    @property
-    def n_analysed(self) -> int:
-        """Frames the detector saw: 0, stride, 2 * stride, ..."""
-        return -(-self.info.n_frames // self.stride)
+    n_analysed: int  # frames the detector saw: 0, stride, 2 * stride, ...
+    complete: bool  # False if perception stopped early to stay inside the time budget
 
 
 class Perception:
@@ -99,7 +97,12 @@ class Perception:
                 f"images {detector.input_size[1]} px wide; the two must match"
             )
 
-    def run(self, video_path: str | Path) -> PerceptionResult:
+    def run(self, video_path: str | Path, deadline: float | None = None) -> PerceptionResult:
+        """Perceive one video.
+
+        deadline: a time.perf_counter() value. When it passes, perception stops after the frame
+        in progress and returns what it has (at least one frame is always analysed).
+        """
         start = time.perf_counter()
         reader = VideoReader(
             video_path,
@@ -109,18 +112,26 @@ class Perception:
         )
         tracker = ByteTracker(reader.info.fps / reader.stride, self.tracker_params)
         detection_rows, track_rows = [], []
-        for frame in prefetch(reader, depth=PREFETCH_FRAMES):
-            found = self.detector(frame.image)
-            full_res = reader.geometry.to_full_res(found.boxes).astype(np.float32)
-            found = Detections(full_res, found.scores, found.class_ids)
-            detection_rows.append(_detection_rows(frame.index, found))
-            track_rows.append(_track_rows(frame.index, tracker.update(found), found))
+        n_analysed, complete = 0, True
+        with closing(prefetch(reader, depth=PREFETCH_FRAMES)) as frames:
+            for frame in frames:
+                found = self.detector(frame.image)
+                full_res = reader.geometry.to_full_res(found.boxes).astype(np.float32)
+                found = Detections(full_res, found.scores, found.class_ids)
+                detection_rows.append(_detection_rows(frame.index, found))
+                track_rows.append(_track_rows(frame.index, tracker.update(found), found))
+                n_analysed += 1
+                if deadline is not None and time.perf_counter() > deadline:
+                    complete = frame.index + reader.stride >= reader.info.n_frames
+                    break
         return PerceptionResult(
             info=reader.info,
             stride=reader.stride,
             detections=_concatenate(detection_rows, DETECTION_DTYPE),
             tracks=_confirmed_only(_concatenate(track_rows, TRACK_DTYPE)),
             seconds=time.perf_counter() - start,
+            n_analysed=n_analysed,
+            complete=complete,
         )
 
 
