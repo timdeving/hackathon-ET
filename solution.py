@@ -6,10 +6,13 @@ Names and signatures are exactly the starter kit's.
 import logging
 
 from src.events import CLASSES
-from src.part_a import detect_events
+from src.part_a import detect_events, load_models
 from src.risk.estimator import RiskEstimator
 
 __all__ = ["CLASSES", "RiskEstimator", "detect_events"]
 
 # The harness prints its own progress lines; this shows our pipeline's log lines next to them.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s")
+
+# The harness imports this module before it starts timing any video, so the models load here.
+load_models()

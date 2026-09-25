@@ -1,12 +1,24 @@
 """solution.py keeps the starter kit's interface, and the unchanged harness accepts its output."""
 from __future__ import annotations
 
+import importlib.util
 import json
 
 import numpy as np
 
 import solution
 from evaluate import OFFICIAL_CLASSES
+from src.config import WEIGHTS_DIR, load_params
+
+
+def perception_available() -> bool:
+    """True where the detector can run: PyTorch, a GPU and the weights file (the GPU PC)."""
+    if importlib.util.find_spec("torch") is None:
+        return False
+    import torch
+
+    weights = WEIGHTS_DIR / load_params()["detector"]["weights"]
+    return torch.cuda.is_available() and weights.exists()
 
 
 def test_solution_exposes_the_starter_kit_interface():
@@ -25,8 +37,13 @@ def test_harness_runs_the_solution_and_the_output_validates(tiny_video, tmp_path
 
     pred = json.loads(out.read_text())
     name = tiny_video.path.name
-    assert pred["log"][name]["errors"] == []
     assert len(pred["videos"][name]["risk"]) == tiny_video.n_frames  # one score per frame
+    errors = pred["log"][name]["errors"]
+    if perception_available():
+        assert errors == []
+    else:  # laptops and CI: the harness still finishes, and its log says why Part A found nothing
+        assert len(errors) == 1
+        assert "perception models unavailable" in errors[0]
 
     check = run_python("evaluate.py", "--pred", str(out), "--validate-only")
     assert check.returncode == 0, check.stdout + check.stderr

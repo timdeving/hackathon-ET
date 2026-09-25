@@ -9,14 +9,29 @@ duplicate boxes are removed with NMS on the GPU.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch
 import torchvision
 
+from src.config import WEIGHTS_DIR
 from src.perception.boxes import PAD_VALUE, Detections, detections_from_rows, letterbox
+
+
+def load_detector(params: Mapping[str, Any], device: str = "cuda") -> Detector:
+    """The detector configured in params (the whole of configs/params.yaml)."""
+    settings = params["detector"]
+    return Detector(
+        WEIGHTS_DIR / settings["weights"],
+        sorted(settings["classes"]),
+        settings["conf"],
+        settings["iou"],
+        settings["max_det"],
+        device=device,
+    )
 
 
 def _configure_torch() -> None:

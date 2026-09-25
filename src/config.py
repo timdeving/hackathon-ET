@@ -13,6 +13,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "configs"
+WEIGHTS_DIR = REPO_ROOT / "weights"
 
 
 @lru_cache(maxsize=1)
