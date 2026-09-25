@@ -1,0 +1,4 @@
+# Export environment, GPU PC only: tools/export_detector.py and tools/check_detector.py.
+# Ultralytics exports YOLO to TorchScript here; the submission never imports it.
+-r requirements.txt
+ultralytics==8.4.163

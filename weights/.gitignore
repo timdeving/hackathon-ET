@@ -1,0 +1,2 @@
+# The official .pt weights are downloaded here during export; only exports are committed.
+*.pt

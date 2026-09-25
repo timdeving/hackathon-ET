@@ -12,3 +12,5 @@ docs
 CLAUDE.md
 **/*.mp4
 **/*.MP4
+# Original .pt weights are only used for exporting; the image needs just the exported files.
+weights/*.pt

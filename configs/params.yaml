@@ -12,6 +12,35 @@ video:
   # Decoder threads; 0 lets FFmpeg use one per CPU core.
   decode_threads: 0
 
+detector:
+  # TorchScript file in weights/, made by tools/export_detector.py (see weights/README.md). Its
+  # input width must equal video.width. Starting choice: YOLO26m, Ultralytics' newest COCO model,
+  # which is NMS-free; tools/check_detector.py and tools/bench_detector.py compare it with other
+  # sizes and with YOLO11 on the GPU PC.
+  weights: yolo26m_736x1280_fp16.torchscript
+  # Keep detections scoring at least this. Starting value: 0.1, ByteTrack's low-score threshold;
+  # the tracker uses low-scoring boxes to keep hold of partly hidden objects.
+  conf: 0.1
+  # Overlap above which NMS drops the weaker of two same-class boxes; used only for models with
+  # raw output (YOLO11). Ultralytics' predict() default.
+  iou: 0.7
+  # At most this many detections per frame. Ultralytics' predict() default.
+  max_det: 300
+  # COCO class ids we keep: road users, traffic lights, and animals that could be on the road.
+  classes:
+    0: person
+    1: bicycle
+    2: car
+    3: motorcycle
+    5: bus
+    7: truck
+    9: traffic light
+    15: cat
+    16: dog
+    17: horse
+    18: sheep
+    19: cow
+
 postprocess:
   # Applied to every class unless overridden under per_class (same keys, per class id).
   default:
