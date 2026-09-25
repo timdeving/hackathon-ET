@@ -41,6 +41,37 @@ detector:
     18: sheep
     19: cow
 
+tracker:
+  # ByteTrack (Zhang et al., 2022). Unless noted, values are the reference implementation's
+  # defaults. Those were tuned at 30 updates per second and we update ~10 times per second
+  # (video.stride 3), so check ID switches on our own tracks before tuning rules on top.
+  # Detections scoring at least this take part in the first matching round.
+  high_score: 0.5
+  # Detections between low_score and high_score can only extend existing tracks (second round).
+  # Equal to detector.conf.
+  low_score: 0.1
+  # Only detections scoring at least this start a new track (ByteTrack: high_score + 0.1).
+  new_track_score: 0.6
+  # Largest accepted matching cost, where cost = 1 - similarity:
+  match_cost_high: 0.8  # first round, similarity = IoU x detection score
+  match_cost_low: 0.5  # second round (weak detections), similarity = IoU
+  match_cost_new: 0.7  # a new track's confirming match, similarity = IoU x score
+  # A lost track overlapping a tracked one of the same group by more than this IoU is a
+  # duplicate (ByteTrack removes pairs closer than IoU distance 0.15).
+  duplicate_iou: 0.85
+  # How long an unmatched track is kept in case the object reappears, in seconds
+  # (ByteTrack: 30 frames at 30 fps).
+  lost_seconds: 1.0
+  # Detections only match tracks of the same group: a pedestrian passing in front of a car never
+  # takes the car's ID, while a vehicle the detector calls "car" then "truck" keeps its ID.
+  # Our own addition; the reference ByteTrack ignores classes.
+  class_groups:
+    vehicle: [2, 5, 7]  # car, bus, truck
+    two_wheeler: [1, 3]  # bicycle, motorcycle
+    person: [0]
+    traffic_light: [9]
+    animal: [15, 16, 17, 18, 19]
+
 postprocess:
   # Applied to every class unless overridden under per_class (same keys, per class id).
   default:
