@@ -121,3 +121,23 @@ postprocess:
     # Starting value: the starter kit's advice to drop blips < 0.5 s; tune at tIoU 0.7.
     min_duration_sec: 0.5
   per_class: {}
+
+stitching:
+  # Track stitching (src/perception/stitching.py), Part A only: a track that vanishes
+  # mid-picture is joined to one of the same class group that appears where its motion predicts.
+  # Starting values from the samples' track caches (2026-09-26): of 2692 tracks that end
+  # mid-picture, the best same-group successor within 8 s is closer than 0.25 box heights for 556,
+  # 0.25-0.5 for 414, 0.5-1 for 384, then spread evenly out to 10 box heights (coincidences).
+  # The two ends, each carried by its own velocity to the middle of the gap, must meet within this
+  # many box heights: the edge of the peak of close successors, for precision.
+  max_distance: 0.5
+  # Longest gap joined: 84% of the close successors (under 1 box height) reappear within 5 s.
+  max_gap_sec: 5.0
+  # Box heights may change by at most this factor across the gap: a partly hidden object's box
+  # shrinks (the close successors' height ratios span 0.78-1.84 from the 5th to 95th percentile).
+  max_size_change: 2.0
+  # A track whose box ends or starts within this fraction of the picture's border left or entered
+  # the picture, and is never joined.
+  edge_margin: 0.02
+  # An end's velocity: the least-squares slope of the positions over its last (or first) second.
+  velocity_sec: 1.0
