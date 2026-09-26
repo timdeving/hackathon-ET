@@ -134,6 +134,17 @@ def lane_direction(lane_index: int, scene: SceneMap) -> np.ndarray:
     return step / max(float(np.linalg.norm(step)), 1e-9)
 
 
+def stop_line_crossing(rows: np.ndarray, scene: SceneMap) -> tuple[int, int] | None:
+    """(row, lane) where the vehicle's front first crosses its incoming lane's stop line, coming
+    from that lane; None if it never does in view."""
+    lane = last_incoming_lane(rows, scene)
+    if lane is None or scene.lanes[lane].arm not in scene.stop_lines:
+        return None
+    past = past_stop_line(front_points(rows, lane_direction(lane, scene)), lane, scene)
+    crossings = np.flatnonzero(past[1:] & ~past[:-1] & (rows["lane"][:-1] == lane)) + 1
+    return (int(crossings[0]), lane) if len(crossings) else None
+
+
 def last_incoming_lane(rows: np.ndarray, scene: SceneMap) -> int | None:
     """The last incoming lane (index into scene.lanes) among these rows, or None."""
     incoming = np.array([lane.role == "in" for lane in scene.lanes] + [False])

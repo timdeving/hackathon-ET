@@ -20,14 +20,7 @@ import numpy as np
 
 from src.events import Segment
 from src.features.tracks import VEHICLES
-from src.rules.common import (
-    RED,
-    RuleContext,
-    front_points,
-    lane_direction,
-    last_incoming_lane,
-    past_stop_line,
-)
+from src.rules.common import RED, RuleContext, stop_line_crossing
 from src.scene.scene_map import SceneMap
 
 LABEL = "red_light"
@@ -39,7 +32,7 @@ def find(context: RuleContext) -> list[Segment]:
         return []
     segments = []
     for info, rows in features.tracks_of(VEHICLES):
-        crossing = _crossing(rows, scene)
+        crossing = stop_line_crossing(rows, scene)
         if crossing is None:
             continue
         index, lane = crossing
@@ -53,17 +46,6 @@ def find(context: RuleContext) -> list[Segment]:
         end = min(_leaves(rows, index, scene, features.dt), crossed + p["max_sec"])
         segments.append(Segment(crossed, end, LABEL, (int(info["track_id"]),)))
     return segments
-
-
-def _crossing(rows: np.ndarray, scene: SceneMap) -> tuple[int, int] | None:
-    """(row, lane) where the vehicle's front first crosses its incoming lane's stop line, coming
-    from that lane; None if it never does in view."""
-    lane = last_incoming_lane(rows, scene)
-    if lane is None or scene.lanes[lane].arm not in scene.stop_lines:
-        return None
-    past = past_stop_line(front_points(rows, lane_direction(lane, scene)), lane, scene)
-    crossings = np.flatnonzero(past[1:] & ~past[:-1] & (rows["lane"][:-1] == lane)) + 1
-    return (int(crossings[0]), lane) if len(crossings) else None
 
 
 def _leaves(rows: np.ndarray, index: int, scene: SceneMap, dt: float) -> float:

@@ -68,6 +68,7 @@ FEATURE_DTYPE = np.dtype(
         ("on_road", np.bool_),  # carriageway, islands excluded
         ("lane", np.int16),  # index into SceneMap.lanes, or -1
         ("crossing", np.int16),  # index into SceneMap.crossings, or -1
+        ("exit", np.int16),  # index into SceneMap.exit_arms (where a road leaves view), or -1
         ("junction", np.bool_),
         ("parking", np.bool_),
         ("bus_stop", np.bool_),
@@ -320,6 +321,7 @@ def _add_zones(rows: np.ndarray, scene: SceneMap | None) -> None:
     its lane's direction."""
     rows["lane"] = -1
     rows["crossing"] = -1
+    rows["exit"] = -1
     rows["agreement"] = np.nan
     if scene is None or len(rows) == 0:
         return
@@ -327,6 +329,7 @@ def _add_zones(rows: np.ndarray, scene: SceneMap | None) -> None:
     rows["on_road"] = scene.on_road(ground)
     rows["lane"] = scene.lane_index(ground)
     rows["crossing"] = scene.crossing_index(ground)
+    rows["exit"] = scene.exit_index(ground)
     rows["junction"] = scene.in_junction(ground)
     rows["parking"] = scene.in_parking(ground)
     rows["bus_stop"] = scene.at_bus_stop(ground)

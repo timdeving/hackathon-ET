@@ -184,6 +184,12 @@ rules:
     # The event ends when the vehicle reaches an outgoing lane or leaves the picture, and at most
     # this long after the crossing: a straight-on car leaves the view within a few seconds.
     max_sec: 8.0
+  illegal_turn:
+    # The turn starts where the heading leaves the lane's direction by more than start_deg, and
+    # is complete once it stays within settle_deg of its direction when the new road is reached
+    # (docs/RULES_DESIGN.md §5: "heading starts to change / heading settles").
+    start_deg: 20
+    settle_deg: 15
 
 postprocess:
   # Applied to every class unless overridden under per_class (same keys, per class id).

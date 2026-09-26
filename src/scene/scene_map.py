@@ -94,6 +94,10 @@ class SceneMap:
         self._no_uturn = self._mask(data["no_uturn"].values())
         self._lane_ids = self._index_mask([lane.polygon for lane in self.lanes])
         self._crossing_ids = self._index_mask([_points(p) for p in data["crossings"].values()])
+        # Where each road leaves the picture, named by the road's arm (absent from older maps).
+        zones = data.get("exit_zones", {})
+        self.exit_arms = list(zones)
+        self._exit_ids = self._index_mask([_points(p) for p in zones.values()])
         self._resized: dict[tuple[str, int], np.ndarray] = {}  # masks shrunk or grown, by margin
 
     @classmethod
@@ -142,6 +146,10 @@ class SceneMap:
         if key not in self._resized:
             self._resized[key] = cv2.dilate(self._crossing_ids, _disc(margin_px))
         return self._lookup(self._resized[key], points).astype(np.int64) - 1
+
+    def exit_index(self, points: np.ndarray) -> np.ndarray:
+        """Index into self.exit_arms of the exit zone each point is in, or -1."""
+        return self._lookup(self._exit_ids, points).astype(np.int64) - 1
 
     def flow_direction(self, lane_indices: np.ndarray, points: np.ndarray) -> np.ndarray:
         """Unit direction traffic should move in, at each point of its lane; zero outside lanes."""

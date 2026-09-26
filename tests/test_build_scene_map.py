@@ -81,6 +81,17 @@ def test_a_pedestrian_light_is_kept_as_one(tmp_path, run_python):
     assert (lights["west_main"].pedestrian, lights["west_walk"].pedestrian) == (False, True)
 
 
+def test_exit_zones_are_kept_and_must_name_an_arm(tmp_path, run_python):
+    west = shape("exit:west", "polygon", [[0, 20], [5, 20], [5, 80], [0, 80]])
+    nowhere = shape("exit:nowhere", "polygon", [[195, 20], [200, 20], [200, 80], [195, 80]])
+    refused = build(tmp_path, [*drawing(), west, nowhere], RULES, run_python)
+    assert refused.returncode == 1
+    assert "exit:nowhere: 'nowhere' is not one of the arms" in refused.stdout + refused.stderr
+    result = build(tmp_path, [*drawing(), west], RULES, run_python)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert SceneMap.load(tmp_path / "scene_map.json").exit_arms == ["west"]
+
+
 def test_every_problem_is_listed_and_nothing_is_written(tmp_path, run_python):
     shapes = drawing()
     shapes[5] = shape("flow:west_in_1", "linestrip", [[75, 66], [5, 66]])  # arrow reversed

@@ -48,6 +48,7 @@ SHAPES = {  # label kind -> the LabelMe shape types it may be drawn with
     "parking": {"polygon"},
     "bus_stop": {"polygon"},
     "no_uturn": {"polygon"},
+    "exit": {"polygon"},  # where a road leaves the picture; the name is the road's arm
     "ground": {"point"},
 }
 FILLS = {  # overlay colours (BGR) of the filled areas, drawn in this order
@@ -58,6 +59,7 @@ FILLS = {  # overlay colours (BGR) of the filled areas, drawn in this order
     "parking": (0, 200, 0),
     "bus_stop": (200, 0, 200),
     "no_uturn": (0, 0, 255),
+    "exit": (255, 120, 0),
 }
 
 
@@ -118,6 +120,9 @@ def check(shapes: dict, rules: dict, problems: list[str]) -> None:
     for arm in shapes["stop"]:
         if arm not in arms:
             problems.append(f"stop:{arm}: {arm!r} is not one of the arms")
+    for arm in shapes["exit"]:
+        if arm not in arms:
+            problems.append(f"exit:{arm}: {arm!r} is not one of the arms")
 
     _compare(set(shapes["light"]), set(lights), "light:{} is drawn but missing from the rules file",
              "light {} is in the rules file but not drawn", problems)
@@ -203,6 +208,7 @@ def build(shapes: dict, rules: dict, width: int, height: int, homography) -> dic
         "parking": named("parking"),
         "bus_stops": named("bus_stop"),
         "no_uturn": named("no_uturn"),
+        "exit_zones": named("exit"),
         "ground_points": {
             name: {"image": rounded(shapes["ground"][name][0]), "ground": list(ground[name])}
             for name in sorted(shapes["ground"])
@@ -243,6 +249,8 @@ def draw_overlay(image: np.ndarray, shapes: dict) -> np.ndarray:
         cv2.rectangle(canvas, tuple(np.rint(corner).astype(int)),
                       tuple(np.rint(opposite).astype(int)), (255, 0, 255), thick)
         write(name, corner, (255, 0, 255))
+    for name, points in shapes["exit"].items():
+        write(f"exit:{name}", points.mean(axis=0), (255, 255, 255))
     for name, points in shapes["ground"].items():
         cv2.circle(canvas, tuple(np.rint(points[0]).astype(int)), thick * 3, (255, 255, 255), -1)
         write(name, points[0], (255, 255, 255))

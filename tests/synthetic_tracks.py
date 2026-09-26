@@ -13,7 +13,7 @@ PERSON, CAR, MOTORCYCLE, TRUCK = 0, 2, 3, 7
 FPS = 10.0  # with stride 1: one update every 0.1 s, so times are easy to reason about
 
 
-def street_scene(exits: dict[str, list[str]] | None = None) -> dict:
+def street_scene(exits: dict[str, list[str]] | None = None, side_road: bool = False) -> dict:
     """A 1000x600 picture. The road runs from y = 200 to 500, with pavements above and below.
 
     West of x = 600 it has two carriageways split by a median (y = 340-360): below it, two
@@ -22,6 +22,9 @@ def street_scene(exits: dict[str, list[str]] | None = None) -> dict:
     (x = 640-800), then open road with a bus stop at the lower kerb (x = 850-950). A solid line
     runs diagonally from (0, 400) to (600, 460). exits: allowed exits per lane name (default:
     unknown).
+
+    side_road adds a road leaving the junction southwards (x = 700-820, down to the bottom edge),
+    and exit zones where the roads leave the picture: `east` (x >= 960) and `south` (y >= 570).
     """
     def band(x0: float, y0: float, x1: float, y1: float) -> list[list[float]]:
         return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
@@ -32,10 +35,16 @@ def street_scene(exits: dict[str, list[str]] | None = None) -> dict:
         return {"arm": "west", "role": role, "signal": role == "in",
                 "exits": (exits or {}).get(name), "polygon": band(0, y0, 600, y1), "flow": flow}
 
+    roads = {"main": band(0, 200, 1000, 500)}
+    exit_zones = {}
+    if side_road:
+        roads["south"] = band(700, 500, 820, 600)
+        exit_zones = {"east": band(960, 200, 1000, 500), "south": band(700, 570, 820, 600)}
     return {
         "format": 1,
         "reference": {"video": "street.mp4", "width": 1000, "height": 600},
-        "roads": {"main": band(0, 200, 1000, 500)},
+        "roads": roads,
+        "exit_zones": exit_zones,
         "islands": {"median": band(0, 340, 600, 360)},
         "crossings": {"zebra": band(600, 200, 640, 500)},
         "junction": band(640, 200, 800, 500),
