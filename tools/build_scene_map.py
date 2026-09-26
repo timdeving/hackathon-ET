@@ -14,7 +14,7 @@ file points to.
 The drawing's labels are `kind:name`; the kinds and the shape each must be drawn with are in
 SHAPES below. The rules file holds what the picture can't show: `reference` (the video drawn
 on), `arms` (name: description), `lanes` (name: arm, role in/out, signal, exits), `lights`
-(name: controls, layout) and `ground_points` (name: [x, y] in metres).
+(name: controls, layout, pedestrian) and `ground_points` (name: [x, y] in metres).
 """
 from __future__ import annotations
 
@@ -127,6 +127,8 @@ def check(shapes: dict, rules: dict, problems: list[str]) -> None:
                 problems.append(f"light {name}: controls {arm!r}, which is not one of the arms")
         if light.get("layout", "vertical") not in ("vertical", "horizontal"):
             problems.append(f"light {name}: layout must be vertical or horizontal")
+        if not isinstance(light.get("pedestrian", False), bool):
+            problems.append(f"light {name}: pedestrian must be true or false")
 
     ground = rules.get("ground_points") or {}
     _compare(set(shapes["ground"]), set(ground), "ground:{} is drawn but has no metres in the "
@@ -194,6 +196,7 @@ def build(shapes: dict, rules: dict, width: int, height: int, homography) -> dic
                 "box": np.rint(shapes["light"][name]).astype(int).ravel().tolist(),
                 "controls": list(light.get("controls") or []),
                 "layout": light.get("layout", "vertical"),
+                "pedestrian": light.get("pedestrian", False),
             }
             for name, light in lights.items()
         },

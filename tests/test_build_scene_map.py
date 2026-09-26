@@ -71,6 +71,16 @@ def test_a_correct_drawing_becomes_a_scene_map(tmp_path, run_python):
     assert cv2.imread(str(tmp_path / "reference.jpg")).shape == (100, 200, 3)  # never enlarged
 
 
+def test_a_pedestrian_light_is_kept_as_one(tmp_path, run_python):
+    rules = copy.deepcopy(RULES)
+    rules["lights"]["west_walk"] = {"controls": ["west"], "layout": "vertical", "pedestrian": True}
+    shapes = [*drawing(), shape("light:west_walk", "rectangle", [[160, 5], [166, 15]])]
+    result = build(tmp_path, shapes, rules, run_python)
+    assert result.returncode == 0, result.stdout + result.stderr
+    lights = SceneMap.load(tmp_path / "scene_map.json").lights
+    assert (lights["west_main"].pedestrian, lights["west_walk"].pedestrian) == (False, True)
+
+
 def test_every_problem_is_listed_and_nothing_is_written(tmp_path, run_python):
     shapes = drawing()
     shapes[5] = shape("flow:west_in_1", "linestrip", [[75, 66], [5, 66]])  # arrow reversed

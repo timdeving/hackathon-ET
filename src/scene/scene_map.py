@@ -38,6 +38,9 @@ class Light:
     box: tuple[int, int, int, int]  # x0, y0, x1, y1 around the lamps
     controls: tuple[str, ...]  # arms whose stop line it governs
     layout: str  # "vertical" (red on top) or "horizontal"
+    # A pedestrian signal: when it shows green, the arms in `controls` have red. Drawn where the
+    # vehicle signals for those arms can't be read (they face away from the camera).
+    pedestrian: bool = False
 
 
 def _points(value: list) -> np.ndarray:
@@ -71,7 +74,13 @@ class SceneMap:
         self.stop_lines = {arm: _points(line) for arm, line in data["stop_lines"].items()}
         self.solid_lines = {name: _points(line) for name, line in data["solid_lines"].items()}
         self.lights = {
-            name: Light(name, tuple(light["box"]), tuple(light["controls"]), light["layout"])
+            name: Light(
+                name,
+                tuple(light["box"]),
+                tuple(light["controls"]),
+                light["layout"],
+                light.get("pedestrian", False),  # absent from maps made before the flag
+            )
             for name, light in data["lights"].items()
         }
         ground = data["image_to_ground"]
