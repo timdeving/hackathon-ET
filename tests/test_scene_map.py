@@ -72,6 +72,16 @@ def test_lane_and_light_attributes_are_loaded():
     assert set(scene.stop_lines) == {"west"}
 
 
+def test_margins_shrink_the_road_and_grow_the_crossings():
+    scene = SceneMap(small_scene())
+    near_kerb, well_inside = [10, 23], [10, 35]  # the road starts at y = 20
+    assert scene.on_road(np.array([near_kerb, well_inside]), margin_px=5).tolist() == [False, True]
+    assert scene.on_road(np.array([near_kerb])).tolist() == [True]  # no margin: on the road
+    beside_crossing = np.array([[77, 30]])  # the crossing starts at x = 80
+    assert scene.crossing_index(beside_crossing).tolist() == [-1]
+    assert scene.crossing_index(beside_crossing, margin_px=5).tolist() == [0]
+
+
 def test_an_unknown_format_is_rejected():
     with pytest.raises(ValueError, match="format"):
         SceneMap({**small_scene(), "format": 2})

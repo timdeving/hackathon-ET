@@ -88,6 +88,64 @@ tracker:
     traffic_light: [9]
     animal: [15, 16, 17, 18, 19]
 
+features:
+  # Per-object features (src/features/tracks.py; docs/RULES_DESIGN.md §2). Speeds are in box
+  # heights per second until the scene map has ground points in metres. Every value here is a
+  # starting value: check it against speed histograms from the real track cache, then tune it
+  # with tools/eval_from_cache.py.
+  # Centred moving average of the boxes over this many seconds (5 updates at stride 3): long
+  # enough to average out detector jitter, short enough to keep boundaries within ~0.1 s.
+  smooth_sec: 0.5
+  # Moving: at least this fast. Below it, the direction of motion is noise.
+  moving_speed: 0.3
+  # Stationary from below stop_enter until above stop_exit: two thresholds, so the state doesn't
+  # flicker while speed hovers around one.
+  stop_enter: 0.1
+  stop_exit: 0.25
+  # A person whose box overlaps a bicycle or motorcycle box by more than this share of its own
+  # area, in at least half of its frames, is a rider, not a pedestrian.
+  rider_overlap: 0.3
+  # A person whose box lies inside a car, bus or truck box by more than occupant_overlap, in at
+  # least occupant_frames of its frames, is seen through the windscreen, not walking.
+  occupant_overlap: 0.8
+  occupant_frames: 0.8
+
+rules:
+  # Classes predicted. Enabling one is a team decision, taken once its dev F1 is decent and the
+  # class is plausible here: predicting a class the test set lacks adds a zero to Score A
+  # (PLAN.md B1). tools/eval_from_cache.py measures every rule, enabled or not.
+  enabled: []
+  # One section per rule (src/rules/<class>.py); all starting values until tuned on dev labels.
+  jaywalking:
+    # Feet must be at least this far inside the road outline (reference pixels): ignores feet
+    # jittering around the kerb.
+    edge_margin_px: 20
+    # On the road outside a crossing for at least this long (docs/RULES_DESIGN.md §5).
+    min_sec: 1.0
+    # Gaps up to this long are bridged: feet flickering across a crossing's edge.
+    gap_sec: 0.5
+  failure_to_yield:
+    # The bottom share of a vehicle's box taken as its outline on the ground.
+    footprint_share: 0.4
+    # A pedestrian's feet within this many reference pixels of a crossing count as stepping
+    # onto it.
+    approach_margin_px: 30
+    # The vehicle must move at least this fast while the pedestrian is there (box heights per
+    # second); slower is creeping in a queue.
+    min_speed: 0.5
+  wrong_way:
+    # Heading against the lane: cosine with the lane's flow below this (-0.5: more than 120 deg
+    # off; docs/RULES_DESIGN.md §5).
+    against: -0.5
+    # Slower movement doesn't count: reversing out of a space, creeping in a queue.
+    min_speed: 0.5
+    min_sec: 1.0
+    gap_sec: 0.5
+  solid_line_crossing:
+    # The second corner must cross within this many seconds of the first; a lane change takes
+    # 1-3 s.
+    max_sec: 4.0
+
 postprocess:
   # Applied to every class unless overridden under per_class (same keys, per class id).
   default:

@@ -24,8 +24,13 @@ CLASSES: list[str] = [
 
 
 class Segment(NamedTuple):
-    """One event: seconds from the first frame, and its class id."""
+    """One event: seconds from the first frame, and its class id.
+
+    tracks: the track IDs behind the event, for error analysis and the website. Post-processing
+    doesn't use them, and they never reach predictions.json.
+    """
 
     start: float
     end: float
     label: str
+    tracks: tuple[int, ...] = ()

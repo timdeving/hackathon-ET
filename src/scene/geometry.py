@@ -47,6 +47,14 @@ def _nearest_on_polyline(points: np.ndarray, polyline: np.ndarray) -> tuple[np.n
     return segment, distances[np.arange(len(points)), segment]
 
 
+def side_of_polyline(points: np.ndarray, polyline: np.ndarray) -> np.ndarray:
+    """Which side of the polyline each point is on, judged against the polyline's segment nearest
+    to it: positive on one side, negative on the other, as side_of_line."""
+    segment, _ = _nearest_on_polyline(points, polyline)
+    a, b = polyline[:-1][segment], polyline[1:][segment]
+    return _cross(b - a, points - a)
+
+
 def distance_to_polyline(points: np.ndarray, polyline: np.ndarray) -> np.ndarray:
     """Distance from each point to the nearest point of the polyline."""
     return _nearest_on_polyline(points, polyline)[1]

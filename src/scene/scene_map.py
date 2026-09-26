@@ -44,6 +44,11 @@ def _points(value: list) -> np.ndarray:
     return np.asarray(value, dtype=np.float64).reshape(-1, 2)
 
 
+def _disc(radius: int) -> np.ndarray:
+    """A round structuring element, for shrinking or growing a mask by `radius` pixels."""
+    return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * radius + 1, 2 * radius + 1))
+
+
 class SceneMap:
     def __init__(self, data: dict) -> None:
         if data.get("format") != FORMAT:
@@ -80,14 +85,25 @@ class SceneMap:
         self._no_uturn = self._mask(data["no_uturn"].values())
         self._lane_ids = self._index_mask([lane.polygon for lane in self.lanes])
         self._crossing_ids = self._index_mask([_points(p) for p in data["crossings"].values()])
+        self._resized: dict[tuple[str, int], np.ndarray] = {}  # masks shrunk or grown, by margin
 
     @classmethod
     def load(cls, path: str | Path = CONFIG_DIR / "scene_map.json") -> SceneMap:
         return cls(json.loads(Path(path).read_text()))
 
-    def on_road(self, points: np.ndarray) -> np.ndarray:
-        """On the carriageway: inside a road polygon and not on an island."""
-        return self._lookup(self._road, points)
+    def on_road(self, points: np.ndarray, margin_px: int = 0) -> np.ndarray:
+        """On the carriageway: inside a road polygon and not on an island.
+
+        margin_px > 0 shrinks the road by that many pixels first, so a point must be at least
+        that far inside it. That ignores feet jittering around the kerb.
+        """
+        if margin_px <= 0:
+            return self._lookup(self._road, points)
+        key = ("road", margin_px)
+        if key not in self._resized:
+            shrunk = cv2.erode(self._road.astype(np.uint8), _disc(margin_px))
+            self._resized[key] = shrunk.astype(bool)
+        return self._lookup(self._resized[key], points)
 
     def in_junction(self, points: np.ndarray) -> np.ndarray:
         return self._lookup(self._junction, points)
@@ -105,9 +121,18 @@ class SceneMap:
         """Index into self.lanes of the lane each point is in, or -1."""
         return self._lookup(self._lane_ids, points).astype(np.int64) - 1
 
-    def crossing_index(self, points: np.ndarray) -> np.ndarray:
-        """Index into self.crossings of the crossing each point is in, or -1."""
-        return self._lookup(self._crossing_ids, points).astype(np.int64) - 1
+    def crossing_index(self, points: np.ndarray, margin_px: int = 0) -> np.ndarray:
+        """Index into self.crossings of the crossing each point is in, or -1.
+
+        margin_px > 0 grows each crossing by that many pixels first, so someone about to step
+        onto it counts too. Where two grown crossings overlap, the later one wins.
+        """
+        if margin_px <= 0:
+            return self._lookup(self._crossing_ids, points).astype(np.int64) - 1
+        key = ("crossings", margin_px)
+        if key not in self._resized:
+            self._resized[key] = cv2.dilate(self._crossing_ids, _disc(margin_px))
+        return self._lookup(self._resized[key], points).astype(np.int64) - 1
 
     def flow_direction(self, lane_indices: np.ndarray, points: np.ndarray) -> np.ndarray:
         """Unit direction traffic should move in, at each point of its lane; zero outside lanes."""
