@@ -5,7 +5,7 @@ downloaded at run time.
 
 | File | Model | Input (h × w) | Precision | Size | SHA-256 |
 | --- | --- | --- | --- | --- | --- |
-| *(added after the export on the GPU PC)* | | | | | |
+| `yolo26m_736x1280_fp16.torchscript` | YOLO26m (COCO), exported with Ultralytics 8.4.163; NMS-free output (300 rows) | 736 × 1280 | FP16, CUDA | 41.5 MB | `24f6b6983115f1b89e78fe723450a44f35d91c307b0112838736edf33a7e6714` |
 
 ## How a file is made
 

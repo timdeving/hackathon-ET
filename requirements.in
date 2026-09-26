@@ -1,5 +1,5 @@
 # Direct runtime dependencies. requirements.txt is generated from this file by
-# tools/pin_requirements.sh, so every transitive version is pinned for Linux.
+# tools/pin_requirements.sh, which pins every transitive version for Linux and Windows alike.
 
 # PyTorch CUDA 12.6 builds: CUDA 12 runs on any NVIDIA driver >= 525, while CUDA 13 builds
 # would need >= 580, which the judges' T4 machine may not have. 2.9.1 is the last release
@@ -14,6 +14,8 @@ numpy>=1.24,<2.3
 scipy>=1.11,<1.16
 # The harness reads frames with cv2; the headless build needs no system GUI libraries (libGL).
 opencv-python-headless>=4.8
-# PyAV: our video decoder; its wheel bundles FFmpeg, so no system ffmpeg is needed.
-av>=12
+# PyAV: our video decoder; its wheel bundles FFmpeg, so no system ffmpeg is needed. Below 18:
+# PyAV 18 needs Python 3.11+, so allowing it would pin 17 on Python 3.10 and 18 elsewhere, while
+# our frame numbering is checked against one decoder.
+av>=12,<18
 pyyaml>=6
