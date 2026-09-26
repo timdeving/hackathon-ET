@@ -24,6 +24,7 @@ from src.perception.pipeline import Perception, PerceptionResult
 from src.perception.stitching import stitch_tracks
 from src.postprocess.segments import finalize_events
 from src.rules import find_events
+from src.rules.common import PhaseTimeline
 from src.scene.alignment import estimate_alignment, view_change
 from src.scene.scene_map import SceneMap
 from src.video.probe import probe_video
@@ -84,7 +85,7 @@ def detect_events(video_path: str) -> list[list]:
         log.error("%s: Part B's decoding alone may not fit in the time budget", info.name)
 
     result = perception.run(video_path, deadline=start + max(allowed, 0.0))
-    segments = _find_events(result, params)
+    segments = _find_events(result, params)  # camera alignment and light phases: see there
     events = finalize_events(segments, info.duration, params["postprocess"])
     if not result.complete:
         covered = result.n_analysed * result.stride / info.fps
@@ -110,16 +111,28 @@ def detect_events(video_path: str) -> list[list]:
     return events
 
 
-def _find_events(result: PerceptionResult, params: Mapping[str, Any]) -> list[Segment]:
+def _find_events(
+    result: PerceptionResult,
+    params: Mapping[str, Any],
+    mapper: PointMapper | None = None,
+    phases: Mapping[str, PhaseTimeline] | None = None,
+) -> list[Segment]:
     """Raw segments of the enabled rules; none while no class is enabled or the scene map is
-    missing. A rule that fails costs only its own class."""
+    missing. A rule that fails costs only its own class.
+
+    mapper: the video's camera alignment; by default it is estimated here from the background
+    perception collected (_align). Track fragments are stitched first (src/perception/
+    stitching.py). phases: the signal phase per arm (src/scene/signals.py, from the GPU PC);
+    until then red_light makes no call.
+    """
     if not params["rules"]["enabled"]:
         return []
     scene = _get_scene_map()
     if scene is None:
         return []
     stitched = stitch_tracks(result, params)
-    return find_events(stitched, _align(result, scene, params), scene, params, skip_failures=True)
+    mapper = mapper or _align(result, scene, params)
+    return find_events(stitched, mapper, scene, params, skip_failures=True, phases=phases)
 
 
 def _align(result: PerceptionResult, scene: SceneMap, params: Mapping[str, Any]) -> PointMapper:

@@ -90,10 +90,11 @@ def main() -> int:
             continue
         mapper, alignment = alignment_for(args.cache / video)
         result = stitch_tracks(load_result(folder), params)  # as Part A does
-        segments = find_events(result, mapper, scene, params, args.rules)
+        phases, lights = phases_for(result, mapper, scene, params)
+        segments = find_events(result, mapper, scene, params, args.rules, phases=phases)
         events = finalize_events(segments, labels[video]["duration"], params["postprocess"])
         predictions[video], raw[video] = {"events": events}, segments
-        print(f"{video}: cache {folder.name}, {alignment}, {len(events)} events")
+        print(f"{video}: cache {folder.name}, {alignment}, {lights}, {len(events)} events")
     if not predictions:
         print("nothing to score: no labelled video has a track cache", file=sys.stderr)
         return 1
@@ -138,6 +139,17 @@ def alignment_for(video_folder: Path) -> tuple[PointMapper, str]:
     except ImportError:
         return NoAlignment(), "alignment.json found but src/scene/alignment.py missing"
     return load_alignment(path), "aligned"
+
+
+def phases_for(result, mapper: PointMapper, scene: SceneMap, params: dict) -> tuple[dict, str]:
+    """The signal phase per arm from the cached light data, and a note saying whether there
+    are any. Needs src/scene/signals.py (the GPU PC's); without it, no phases."""
+    try:
+        from src.scene.signals import arm_phases  # the GPU PC's module, once merged
+    except ImportError:
+        return {}, "no light phases"
+    phases = arm_phases(result, mapper, scene, params)
+    return phases, f"light phases for {', '.join(sorted(phases)) or 'no arm'}"
 
 
 def print_scores(report: dict, rules: list[str]) -> None:

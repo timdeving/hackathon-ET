@@ -18,12 +18,13 @@ from src.rules import (
     failure_to_yield,
     illegal_u_turn,
     jaywalking,
+    red_light,
     solid_line_crossing,
     stop_line,
     stopped_vehicle,
     wrong_way,
 )
-from src.rules.common import RuleContext
+from src.rules.common import PhaseTimeline, RuleContext
 from src.scene.scene_map import SceneMap
 
 log = logging.getLogger(__name__)
@@ -41,6 +42,8 @@ RULES: dict[str, Callable[[RuleContext], list[Segment]]] = {
         congestion,
         stop_line,
         illegal_u_turn,
+        # Batch C: needs the traffic lights read (docs/SIGNAL_DESIGN.md)
+        red_light,
     )
 }
 
@@ -52,6 +55,7 @@ def find_events(
     params: Mapping[str, Any],
     labels: Sequence[str] | None = None,
     skip_failures: bool = False,
+    phases: Mapping[str, PhaseTimeline] | None = None,
 ) -> list[Segment]:
     """Raw segments of every rule in `labels` (default: params `rules.enabled`), for one video.
 
@@ -59,6 +63,8 @@ def find_events(
     Segments still need finalize_events(): they may overlap, flicker, or run past the video.
     skip_failures: a rule that raises is logged and skipped, so one rule's bug costs only its
     own class (the submission); otherwise the error propagates (development).
+    phases: the signal phase per arm, where the traffic lights are read (src/scene/signals.py,
+    from the GPU PC); without them red_light makes no call and stop_line guesses red.
     """
     labels = list(params["rules"]["enabled"] if labels is None else labels)
     missing = sorted(set(labels) - set(RULES))
@@ -69,7 +75,7 @@ def find_events(
     features = compute_features(result, mapper, scene, params["features"])
     segments = []
     for label in labels:
-        context = RuleContext(features, scene, params["rules"][label])
+        context = RuleContext(features, scene, params["rules"][label], phases or {})
         if not skip_failures:
             segments += RULES[label](context)
             continue
