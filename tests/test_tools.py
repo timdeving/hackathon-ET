@@ -4,10 +4,33 @@ from __future__ import annotations
 import copy
 import json
 
+import cv2
+import numpy as np
+
+from tools.extract_frames import median_image
+
 RUN = {
     "videos": {"v.mp4": {"events": [[1.0, 2.0, "congestion"]], "risk": [[0.0, 0.1]]}},
     "log": {"v.mp4": {"total_sec": 1.0}},
 }
+
+
+def test_median_image_removes_what_moves():
+    frames = [np.full((500, 4, 3), 100, np.uint8) for _ in range(5)]
+    frames[1][0:20] = 255  # something passing through, in one frame only
+    frames[3][480:] = 0
+    np.testing.assert_array_equal(median_image(frames), frames[0])  # also across row strips
+
+
+def test_frame_extraction_writes_a_background_and_sample_frames(tiny_video, tmp_path, run_python):
+    out = tmp_path / "frames"
+    run = run_python("-m", "tools.extract_frames", tiny_video.path, "--out", out, "--samples", "10")
+    assert run.returncode == 0, run.stdout + run.stderr
+    folder = out / tiny_video.path.name
+    background = cv2.imread(str(folder / "background.png"))
+    assert background.shape == (tiny_video.size[1], tiny_video.size[0], 3)
+    for name in ("start", "middle", "end"):
+        assert (folder / f"frame_{name}.jpg").exists()
 
 
 def test_determinism_check_compares_predictions_but_not_timings(tmp_path, run_python):
