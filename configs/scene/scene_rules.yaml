@@ -11,10 +11,12 @@ lanes:
   # (bottom = straight on, left = right turn into the side road, top = U-turn back up the road).
   # A lane without exits is unknown: no call on turns from it.
   top_in_1: {arm: top, role: in, signal: true, exits: [bottom, top]}  # straight on or U-turn
-  top_in_2: {arm: top, role: in, signal: true}
-  top_in_3: {arm: top, role: in, signal: true}
-  top_in_4: {arm: top, role: in, signal: true}
-  top_in_5: {arm: top, role: in, signal: true}
+  # Straight on. People sometimes U-turn from here and nobody knows if that's legal, so the
+  # U-turn is listed as allowed: no call rather than a wrong one. Revisit with the dev labels.
+  top_in_2: {arm: top, role: in, signal: true, exits: [bottom, top]}
+  top_in_3: {arm: top, role: in, signal: true, exits: [bottom]}  # straight on only
+  top_in_4: {arm: top, role: in, signal: true, exits: [bottom]}  # straight on only
+  top_in_5: {arm: top, role: in, signal: true, exits: [left]}  # right turn into the side road only
   # Outgoing, beyond the median; 1 is next to the median.
   top_out_1: {arm: top, role: out}
   top_out_2: {arm: top, role: out}

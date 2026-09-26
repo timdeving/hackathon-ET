@@ -413,7 +413,10 @@
    "arm": "top",
    "role": "in",
    "signal": true,
-   "exits": null,
+   "exits": [
+    "bottom",
+    "top"
+   ],
    "polygon": [
     [
      133.8,
@@ -447,7 +450,9 @@
    "arm": "top",
    "role": "in",
    "signal": true,
-   "exits": null,
+   "exits": [
+    "bottom"
+   ],
    "polygon": [
     [
      102.8,
@@ -481,7 +486,9 @@
    "arm": "top",
    "role": "in",
    "signal": true,
-   "exits": null,
+   "exits": [
+    "bottom"
+   ],
    "polygon": [
     [
      1099.3,
@@ -515,7 +522,9 @@
    "arm": "top",
    "role": "in",
    "signal": true,
-   "exits": null,
+   "exits": [
+    "left"
+   ],
    "polygon": [
     [
      830.3,
