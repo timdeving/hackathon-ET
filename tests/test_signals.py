@@ -131,6 +131,14 @@ def test_the_lit_lamp_gives_the_phase(fraction, colour, phase):
     assert (codes == phase).all()
 
 
+def test_red_and_amber_together_read_amber_not_red():
+    """The 3 s before green: both lamps lit. Moving off then isn't running a red light."""
+    frame = frame_with({"head": (TOP, RED_LAMP)})
+    x, y = (HEAD[0] + HEAD[2]) // 2, round(HEAD[1] + MIDDLE * (HEAD[3] - HEAD[1]))
+    cv2.circle(frame, (x, y), 6, AMBER_LAMP, -1)
+    assert (head_codes([frame] * 30) == AMBER).all()
+
+
 def test_an_amber_lamp_that_looks_red_still_reads_amber():
     codes = head_codes([frame_with({"head": (MIDDLE, (40, 60, 240))})] * 30)  # orange-red
     assert (codes == AMBER).all()

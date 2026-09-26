@@ -221,15 +221,25 @@ def _brightest_lamp(
     cells: np.ndarray, lamp_of: np.ndarray, lamps: tuple, min_lit_px: int
 ) -> np.ndarray:
     """Each frame's phase: the lamp with the most lit pixels of its own colours, if it has at
-    least min_lit_px; UNKNOWN otherwise."""
+    least min_lit_px; UNKNOWN otherwise.
+
+    Red and amber lit together (the 3 s before every green here) reads as AMBER: a change of
+    phase in progress, not plain red. Drivers move off then, and red_light shouldn't call them.
+    Outside that moment neither lamp lights the other's place (0 lit pixels in the samples).
+    """
     flat = cells.reshape(len(cells), len(COLOURS), -1)
     blocks_of = lamp_of.ravel()
     scores = np.zeros((len(cells), len(lamps)), dtype=np.int64)
     for k, (_, colours) in enumerate(lamps):
         in_lamp = flat[:, :, blocks_of == k]  # [frames, colours, the lamp's blocks]
         scores[:, k] = in_lamp[:, list(colours)].sum(axis=(1, 2), dtype=np.int64)
-    codes = np.array([code for code, _ in lamps], dtype=np.int8)[scores.argmax(axis=1)]
-    return np.where(scores.max(axis=1) >= min_lit_px, codes, UNKNOWN).astype(np.int8)
+    phase_of_lamp = [code for code, _ in lamps]
+    codes = np.array(phase_of_lamp, dtype=np.int8)[scores.argmax(axis=1)]
+    codes = np.where(scores.max(axis=1) >= min_lit_px, codes, UNKNOWN).astype(np.int8)
+    if RED in phase_of_lamp and AMBER in phase_of_lamp:
+        lit = scores >= min_lit_px
+        codes[lit[:, phase_of_lamp.index(RED)] & lit[:, phase_of_lamp.index(AMBER)]] = AMBER
+    return codes
 
 
 def _clean(codes: np.ndarray, per_sec: float, signal: Mapping[str, Any]) -> np.ndarray:

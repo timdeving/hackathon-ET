@@ -1,8 +1,8 @@
 """Do two runs give identical results? The task requires it. Run on the GPU PC.
 
     python -m tools.check_determinism perception VIDEO
-        Runs perception twice in one process and compares the detections and tracks tables
-        bit for bit.
+        Runs perception twice in one process, cutting the traffic lights' windows as Part A
+        does, and compares the detections and tracks tables and the lights' counts bit for bit.
     python -m tools.check_determinism predictions A.json B.json
         Compares two predictions files (events and risk curves), ignoring the harness's timing
         log, which always differs.
@@ -45,17 +45,29 @@ def compare_tables(first: np.ndarray, second: np.ndarray, name: str) -> list[str
 
 def check_perception(video: Path) -> list[str]:
     # Imported here so the predictions check also works on laptops, without PyTorch.
-    from src.config import load_params
+    from src.config import CONFIG_DIR, load_params
     from src.perception.detector import load_detector
     from src.perception.pipeline import Perception
+    from src.scene.scene_map import SceneMap
+    from src.scene.signals import light_windows
+    from src.video.probe import probe_video
 
     params = load_params()
     perception = Perception(load_detector(params), params)
-    first, second = perception.run(video), perception.run(video)
-    print(f"{video.name}: {len(first.detections)} detections, {len(first.tracks)} track rows")
-    return compare_tables(first.detections, second.detections, "detections") + compare_tables(
-        first.tracks, second.tracks, "tracks"
-    )
+    rois = {}
+    if (CONFIG_DIR / "scene_map.json").exists():
+        info = probe_video(video)
+        scene = SceneMap.load(CONFIG_DIR / "scene_map.json")
+        rois = light_windows(scene, params["signal"]["margin_px"], (info.width, info.height))
+    first, second = perception.run(video, rois=rois), perception.run(video, rois=rois)
+    print(f"{video.name}: {len(first.detections)} detections, {len(first.tracks)} track rows, "
+          f"lights {', '.join(sorted(first.lights)) or 'none'}")
+    problems = compare_tables(first.detections, second.detections, "detections")
+    problems += compare_tables(first.tracks, second.tracks, "tracks")
+    for name in sorted(set(first.lights) | set(second.lights)):
+        if not np.array_equal(first.lights.get(name), second.lights.get(name)):
+            problems.append(f"lights {name}: the counts differ")
+    return problems
 
 
 def main() -> int:

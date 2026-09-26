@@ -109,13 +109,16 @@ def _print_crossings(
     """Vehicles crossing the stop line, per lane and phase, as Part A sees them (stitched)."""
     features = compute_features(stitch_tracks(result, params), mapper, scene, params["features"])
     counts: Counter = Counter()
-    for _, rows in features.tracks_of(VEHICLES):
+    on_red = []
+    for info, rows in features.tracks_of(VEHICLES):
         crossing = stop_line_crossing(rows, scene)
         if crossing is None or scene.lanes[crossing[1]].arm not in arms:
             continue
         index, lane = crossing
         phase = int(arms[scene.lanes[lane].arm].at(rows["frame"][index : index + 1])[0])
         counts[scene.lanes[lane].name, phase] += 1
+        if phase == RED:
+            on_red.append((float(rows["t"][index]), scene.lanes[lane].name, int(info["track_id"])))
     lanes = sorted({lane for lane, _ in counts})
     order = [GREEN, AMBER, RED, UNKNOWN]
     print("stop-line crossings by phase:  lane      " + "".join(f"{PHASE_NAMES[c]:>9}"
@@ -124,6 +127,8 @@ def _print_crossings(
         print(f"{'':31}{lane:<10}" + "".join(f"{counts[lane, c]:>9}" for c in order))
     if not lanes:
         print(f"{'':31}(none)")
+    for t, lane, track in sorted(on_red):
+        print(f"crossed on red: {t:.1f} s, {lane}, track {track} (worth a look in the video)")
 
 
 def _write_sheet(
@@ -159,17 +164,21 @@ def _write_sheet(
 
 def _tile(path: Path, frame: int, phases: Phases, fps: float, result: PerceptionResult,
           mapper: PointMapper, scene: SceneMap, name: str) -> np.ndarray:
-    """One snapshot with the head's box (mapped into the video) and the phase read there."""
+    """The head in one snapshot, its box (mapped into the video) drawn, and the phase read."""
     image = cv2.imread(str(path))
     x0, y0, x1, y1 = scene.lights[name].box
     corners = np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], dtype=np.float64)
     to_video = np.linalg.inv(getattr(mapper, "homography", np.eye(3)))
-    in_video = cv2.perspectiveTransform(corners[None], to_video)[0]
     window = result.light_windows[name]
-    outline = (in_video - [window[0], window[1]]).round().astype(np.int32)
-    cv2.polylines(image, [outline], True, (255, 255, 0), 2)
+    outline = cv2.perspectiveTransform(corners[None], to_video)[0] - [window[0], window[1]]
+    cv2.polylines(image, [outline.round().astype(np.int32)], True, (255, 255, 0), 1)
+    # Just the head and a little around it: the lamps are what the eye has to check.
+    (left, top), (right, bottom) = outline.min(axis=0), outline.max(axis=0)
+    pad_x, pad_y = 0.6 * (right - left), 0.2 * (bottom - top)
+    image = image[max(0, int(top - pad_y)) : int(bottom + pad_y),
+                  max(0, int(left - pad_x)) : int(right + pad_x)]
     scale = SHEET_TILE_WIDTH / image.shape[1]
-    image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     code = int(phases.at(np.array([frame]))[0])
     cv2.rectangle(image, (0, 0), (image.shape[1], 26), COLOURS_BGR[code], -1)
     cv2.putText(image, f"{frame / fps:.1f} s {PHASE_NAMES[code]}", (6, 19),
