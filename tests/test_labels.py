@@ -31,6 +31,15 @@ def test_labels_become_ground_truth_the_scorer_accepts(tiny_video, tmp_path, run
     assert scored.returncode == 0, scored.stdout + scored.stderr
 
 
+def test_notes_are_listed_and_left_out_of_the_ground_truth(tiny_video, tmp_path, run_python):
+    events = [[0.5, 1.0, "stopped_vehicle", "bus at a bus stop"], [1.2, 1.6, "jaywalking"]]
+    result, out = convert(tiny_video, tmp_path, events, run_python)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "stopped_vehicle: bus at a bus stop" in result.stdout
+    entry = json.loads(out.read_text())[tiny_video.path.name]
+    assert entry["events"] == [[0.5, 1.0, "stopped_vehicle"], [1.2, 1.6, "jaywalking"]]
+
+
 def test_bad_labels_are_reported_and_nothing_is_written(tiny_video, tmp_path, run_python):
     result, out = convert(tiny_video, tmp_path, [[1.0, 0.5, "speeding"]], run_python)
     assert result.returncode == 1

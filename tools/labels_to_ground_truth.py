@@ -4,7 +4,9 @@
         [--out data/dev_labels.json]
 
 Label files may be in the ground-truth format ({video: {"events": [...]}}) or the predictions
-format ({"videos": {video: {"events": [...]}}}). Video names are matched to the files in
+format ({"videos": {video: {"events": [...]}}}). An event is [start, end, label], or
+[start, end, label, note] where the note flags a doubtful case (e.g. "bus at a bus stop"); notes
+are listed for review and left out of the ground truth. Video names are matched to the files in
 --videos ignoring case, since the scorer compares names exactly; each video's duration and fps
 are read from its file the way the harness reads them. Same-class segments that overlap are
 merged, as the organizers' annotations do. Every problem is listed at once (exit code 1).
@@ -51,6 +53,7 @@ def main() -> int:
     files = {p.name.lower(): p for p in args.videos.iterdir() if p.suffix.lower() == ".mp4"}
     ground_truth: dict[str, dict] = {}
     problems: list[str] = []
+    notes: list[str] = []
     for label_file in args.labels:
         for name, events in events_by_video(json.loads(label_file.read_text())).items():
             video = files.get(name.lower())
@@ -61,12 +64,19 @@ def main() -> int:
                 problems.append(f"{video.name} is labelled in more than one file")
                 continue
             info = probe_video(video)
-            for start, end, label in events:
+            clipped = []
+            for event in events:
+                if len(event) not in (3, 4):
+                    problems.append(f"{video.name}: {event!r} is not [start, end, label(, note)]")
+                    continue
+                start, end, label = event[:3]
                 if label not in CLASSES:
                     problems.append(f"{video.name}: {label!r} is not an official class")
                 if not 0 <= start < end <= info.duration + 0.5:
                     problems.append(f"{video.name}: bad times [{start}, {end}] for {label}")
-            clipped = [[s, min(e, info.duration), label] for s, e, label in events]
+                if len(event) == 4:
+                    notes.append(f"{video.name} {start}-{end} {label}: {event[3]}")
+                clipped.append([start, min(end, info.duration), label])
             merged, n_merged = merge_overlaps(clipped)
             if n_merged:
                 print(f"{video.name}: merged {n_merged} overlapping same-class segment(s)")
@@ -86,6 +96,10 @@ def main() -> int:
     for name, entry in ground_truth.items():
         print(f"{name}: {len(entry['events'])} events, {entry['duration']} s")
     print(f"wrote {args.out}")
+    if notes:
+        print(f"{len(notes)} note(s) to review:")
+        for note in notes:
+            print(f"  {note}")
     return 0
 
 
