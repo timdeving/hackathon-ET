@@ -177,6 +177,13 @@ rules:
     turn_deg: 150
     start_deg: 20
     max_sec: 20.0
+  red_light:
+    # Red for at least this long when the front crosses the stop line: the first moment of red
+    # is too close to amber to call (docs/SIGNAL_DESIGN.md §5).
+    red_grace_sec: 1.0
+    # The event ends when the vehicle reaches an outgoing lane or leaves the picture, and at most
+    # this long after the crossing: a straight-on car leaves the view within a few seconds.
+    max_sec: 8.0
 
 postprocess:
   # Applied to every class unless overridden under per_class (same keys, per class id).

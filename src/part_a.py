@@ -18,10 +18,11 @@ import numpy as np
 from src.budget import harness_read_seconds, part_a_seconds, part_b_seconds
 from src.config import CONFIG_DIR, load_params
 from src.events import Segment
-from src.features.tracks import NoAlignment
+from src.features.tracks import NoAlignment, PointMapper
 from src.perception.pipeline import Perception, PerceptionResult
 from src.postprocess.segments import finalize_events
 from src.rules import find_events
+from src.rules.common import PhaseTimeline
 from src.scene.scene_map import SceneMap
 from src.video.probe import probe_video
 
@@ -79,7 +80,7 @@ def detect_events(video_path: str) -> list[list]:
         log.error("%s: Part B's decoding alone may not fit in the time budget", info.name)
 
     result = perception.run(video_path, deadline=start + max(allowed, 0.0))
-    segments = _find_events(result, params)
+    segments = _find_events(result, params)  # camera alignment and light phases: see there
     events = finalize_events(segments, info.duration, params["postprocess"])
     if not result.complete:
         covered = result.n_analysed * result.stride / info.fps
@@ -105,16 +106,26 @@ def detect_events(video_path: str) -> list[list]:
     return events
 
 
-def _find_events(result: PerceptionResult, params: Mapping[str, Any]) -> list[Segment]:
+def _find_events(
+    result: PerceptionResult,
+    params: Mapping[str, Any],
+    mapper: PointMapper | None = None,
+    phases: Mapping[str, PhaseTimeline] | None = None,
+) -> list[Segment]:
     """Raw segments of the enabled rules; none while no class is enabled or the scene map is
-    missing. A rule that fails costs only its own class."""
+    missing. A rule that fails costs only its own class.
+
+    mapper: the video's camera alignment (src/scene/alignment.py, from the GPU PC); until it
+    exists, the video is treated as framed like the reference. phases: the signal phase per arm
+    (src/scene/signals.py, from the GPU PC); until then red_light makes no call.
+    """
     if not params["rules"]["enabled"]:
         return []
     scene = _get_scene_map()
     if scene is None:
         return []
-    # Camera alignment (src/scene/alignment.py, from the GPU PC) replaces NoAlignment() here.
-    return find_events(result, NoAlignment(), scene, params, skip_failures=True)
+    return find_events(result, mapper or NoAlignment(), scene, params, skip_failures=True,
+                       phases=phases)
 
 
 def _get_scene_map() -> SceneMap | None:

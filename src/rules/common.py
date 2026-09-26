@@ -2,13 +2,25 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 import numpy as np
 
 from src.features.tracks import TrackFeatures
+from src.scene.geometry import side_of_polyline
 from src.scene.scene_map import SceneMap
+
+# Signal phase codes. The GPU PC's src/scene/signals.py returns these (docs/SIGNAL_DESIGN.md §3).
+UNKNOWN, RED, AMBER, GREEN = 0, 1, 2, 3
+
+
+class PhaseTimeline(Protocol):
+    """One arm's signal phase over a video, read from the traffic lights."""
+
+    def at(self, frames: np.ndarray) -> np.ndarray:
+        """The phase code at each of these frame numbers; UNKNOWN where it isn't known."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -18,6 +30,8 @@ class RuleContext:
     features: TrackFeatures
     scene: SceneMap
     params: Mapping[str, Any]  # the rule's own section of params.yaml: rules.<label>
+    # Signal phase per arm, where the lights can be read; empty until they can.
+    phases: Mapping[str, PhaseTimeline] = field(default_factory=dict)
 
 
 def runs(
@@ -87,6 +101,37 @@ def mostly(flags: np.ndarray) -> bool:
 def spread(n: int, at_most: int = 50) -> np.ndarray:
     """Up to at_most row indices spread evenly over n rows, for judging a long stop cheaply."""
     return np.unique(np.linspace(0, n - 1, min(n, at_most)).astype(int)) if n else np.zeros(0, int)
+
+
+def front_points(rows: np.ndarray, flow: np.ndarray) -> np.ndarray:
+    """(N, 2) the front of each vehicle: the bottom point of its box (a corner or the centre)
+    furthest along the travel direction `flow`."""
+    bottom = np.stack(
+        [
+            np.column_stack([rows["left_x"], rows["left_y"]]),
+            np.column_stack([rows["x"], rows["y"]]),
+            np.column_stack([rows["right_x"], rows["right_y"]]),
+        ],
+        axis=1,
+    )  # (N, 3, 2)
+    return bottom[np.arange(len(rows)), (bottom @ flow).argmax(axis=1)]
+
+
+def past_stop_line(points: np.ndarray, lane_index: int, scene: SceneMap) -> np.ndarray:
+    """For each point: is it beyond the stop line of the lane's arm, on the junction side?"""
+    lane = scene.lanes[lane_index]
+    line = scene.stop_lines[lane.arm]
+    flow = lane_direction(lane_index, scene)
+    beyond = line.mean(axis=0) + flow * 10.0  # a point just past the line, to learn which side
+    downstream = np.sign(side_of_polyline(beyond[None], line))[0]
+    return np.sign(side_of_polyline(points, line)) == downstream
+
+
+def lane_direction(lane_index: int, scene: SceneMap) -> np.ndarray:
+    """The unit direction of a lane where it ends: for an incoming lane, at its stop line."""
+    flow = scene.lanes[lane_index].flow
+    step = flow[-1] - flow[-2]
+    return step / max(float(np.linalg.norm(step)), 1e-9)
 
 
 def last_incoming_lane(rows: np.ndarray, scene: SceneMap) -> int | None:
