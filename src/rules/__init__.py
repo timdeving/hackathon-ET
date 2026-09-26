@@ -16,6 +16,7 @@ from src.perception.pipeline import PerceptionResult
 from src.rules import (
     congestion,
     failure_to_yield,
+    illegal_turn,
     illegal_u_turn,
     jaywalking,
     red_light,
@@ -42,8 +43,9 @@ RULES: dict[str, Callable[[RuleContext], list[Segment]]] = {
         congestion,
         stop_line,
         illegal_u_turn,
-        # Batch C: needs the traffic lights read (docs/SIGNAL_DESIGN.md)
+        # Batch C: the traffic lights read (docs/SIGNAL_DESIGN.md), and where vehicles leave
         red_light,
+        illegal_turn,
     )
 }
 

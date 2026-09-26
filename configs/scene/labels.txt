@@ -36,3 +36,5 @@ solid:top_4
 light:median_tip
 light:left_post
 bus_stop:far_kerb
+exit:bottom
+exit:left
