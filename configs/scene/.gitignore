@@ -1,0 +1,5 @@
+# The 4K picture the scene map is drawn on (from the scene backgrounds, ~11 MB) stays out of
+# git; the 1920-px reference.jpg that build_scene_map writes from it is committed.
+background.png
+# LabelMe's own save file while drawing; labelme.json is the copy that's committed.
+background.json

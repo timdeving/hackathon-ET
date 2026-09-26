@@ -1,0 +1,32 @@
+# What the picture can't show (docs/SCENE_MAP.md §3), for the drawing in labelme.json.
+reference: C3897.MP4  # the video whose background.png was drawn on
+
+arms:
+  top: the main road running to the top left; its incoming lanes stop under the gantry
+  bottom: the main road past the junction, nearest the camera, out to the bottom right
+  left: the side road at the bottom left, past the red triangular islands
+
+lanes:
+  # Incoming, under the gantry; 1 is next to the median. `exits` (where each lane may go) are
+  # left out until the team fills them in: unknown means no call on turns from these lanes.
+  top_in_1: {arm: top, role: in, signal: true}
+  top_in_2: {arm: top, role: in, signal: true}
+  top_in_3: {arm: top, role: in, signal: true}
+  top_in_4: {arm: top, role: in, signal: true}
+  top_in_5: {arm: top, role: in, signal: true}
+  # Outgoing, beyond the median; 1 is next to the median.
+  top_out_1: {arm: top, role: out}
+  top_out_2: {arm: top, role: out}
+  top_out_3: {arm: top, role: out}
+  top_out_4: {arm: top, role: out}
+
+lights:
+  median_tip:  # the vehicle signal for the incoming lanes, on the median tip, facing the camera
+    controls: [top]
+    layout: vertical
+  left_post:  # the pedestrian signal on the left gantry post: its green means `top` has red
+    controls: [top]
+    layout: vertical
+    pedestrian: true
+
+ground_points: {}  # none yet: speeds stay in box heights per second
