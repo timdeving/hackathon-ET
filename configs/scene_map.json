@@ -376,7 +376,10 @@
    "arm": "top",
    "role": "in",
    "signal": true,
-   "exits": null,
+   "exits": [
+    "bottom",
+    "top"
+   ],
    "polygon": [
     [
      161.4,

@@ -7,9 +7,10 @@ arms:
   left: the side road at the bottom left, past the red triangular islands
 
 lanes:
-  # Incoming, under the gantry; 1 is next to the median. `exits` (where each lane may go) are
-  # left out until the team fills them in: unknown means no call on turns from these lanes.
-  top_in_1: {arm: top, role: in, signal: true}
+  # Incoming, under the gantry; 1 is next to the median. `exits`: where each lane may go
+  # (bottom = straight on, left = right turn into the side road, top = U-turn back up the road).
+  # A lane without exits is unknown: no call on turns from it.
+  top_in_1: {arm: top, role: in, signal: true, exits: [bottom, top]}  # straight on or U-turn
   top_in_2: {arm: top, role: in, signal: true}
   top_in_3: {arm: top, role: in, signal: true}
   top_in_4: {arm: top, role: in, signal: true}
