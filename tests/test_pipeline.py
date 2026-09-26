@@ -88,6 +88,15 @@ def test_perception_stops_at_the_deadline(tiny_video):
     assert result.detections["frame"].tolist() == [0]
 
 
+def test_the_background_is_the_empty_scene(tiny_video):
+    params = params_with(stride=1, width=WORKING_WIDTH)
+    params["alignment"].update(background_frames=10, match_width=64)
+    result = Perception(SquareDetector(), params).run(tiny_video.path)
+    assert result.background.shape == (48, 64)
+    # The white square moves, so no pixel's median is white: it vanishes from the background.
+    assert result.background.max() < 240
+
+
 def test_detector_and_working_width_must_agree():
     with pytest.raises(ValueError, match="must match"):
         Perception(SquareDetector(), params_with(width=64))

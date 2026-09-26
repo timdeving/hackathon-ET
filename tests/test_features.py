@@ -35,6 +35,15 @@ def test_a_steady_walker_moves_at_the_right_speed_and_never_stops():
     np.testing.assert_allclose(rows["t"], t)
 
 
+def test_tracks_shorter_than_the_smoothing_window_keep_their_length():
+    # Real caches hold confirmed tracks of only a few rows, fewer than the smoothing window.
+    for n_rows in (2, 3, 4):
+        t = times(0, (n_rows - 1) / 10)
+        rows = features_of(track(1, CAR, t, 100 + 50 * t, 400, width=80, height=50)).rows
+        assert len(rows) == n_rows
+        np.testing.assert_allclose(rows["t"], t)
+
+
 def test_a_vehicle_is_stationary_only_while_it_stands_still():
     t = times(0, 9)
     x = np.select([t < 3, t < 6], [100 + 100 * t, 400], 400 + 100 * (t - 6))  # moves, stops 3 s

@@ -41,6 +41,7 @@ from src.config import CONFIG_DIR, REPO_ROOT, load_params
 from src.events import Segment
 from src.features.tracks import NoAlignment, PointMapper
 from src.perception.cache import load_result
+from src.perception.stitching import stitch_tracks
 from src.postprocess.segments import finalize_events
 from src.rules import RULES, find_events
 from src.scene.scene_map import SceneMap
@@ -88,7 +89,8 @@ def main() -> int:
             print(f"{video}: no track cache in {args.cache / video}; skipped")
             continue
         mapper, alignment = alignment_for(args.cache / video)
-        segments = find_events(load_result(folder), mapper, scene, params, args.rules)
+        result = stitch_tracks(load_result(folder), params)  # as Part A does
+        segments = find_events(result, mapper, scene, params, args.rules)
         events = finalize_events(segments, labels[video]["duration"], params["postprocess"])
         predictions[video], raw[video] = {"events": events}, segments
         print(f"{video}: cache {folder.name}, {alignment}, {len(events)} events")

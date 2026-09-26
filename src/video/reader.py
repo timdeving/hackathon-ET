@@ -43,6 +43,7 @@ class SampledFrame:
     t_sec: float  # index / fps: the harness's timestamp for this frame
     image: np.ndarray  # working image: BGR uint8, cropped and shrunk
     rois: dict[str, np.ndarray] = field(default_factory=dict)  # full-resolution BGR crops
+    grey: np.ndarray | None = None  # the whole frame in grey, grey_width wide, on some frames
 
 
 class VideoReader:
@@ -55,6 +56,10 @@ class VideoReader:
         crop: the part of the full frame the working image shows; None means all of it.
         rois: named full-resolution rectangles to cut out of every yielded frame.
         threads: decoder threads; 0 lets FFmpeg use one per CPU core.
+        grey_samples: this many of the yielded frames, spread evenly over the video, also carry
+            the whole frame in grey (SampledFrame.grey): Part A builds the video's empty-road
+            background from them for camera alignment, without a second decode. 0 for none.
+        grey_width: width of those grey frames, never more than the frame's own.
     """
 
     def __init__(
@@ -65,6 +70,8 @@ class VideoReader:
         crop: Box | None = None,
         rois: Mapping[str, Box] | None = None,
         threads: int = 0,
+        grey_samples: int = 0,
+        grey_width: int = 1920,
     ) -> None:
         if stride < 1:
             raise ValueError(f"stride must be at least 1, got {stride}")
@@ -83,6 +90,12 @@ class VideoReader:
         else:
             self.size = (width, max(1, round(crop_h * width / crop_w)))
         self.geometry = FrameGeometry(self.crop, self.size[0] / crop_w, self.size[1] / crop_h)
+
+        # Every grey_every-th yielded frame carries a grey copy (0: none).
+        yielded = -(-self.info.n_frames // stride)
+        self.grey_every = max(1, yielded // grey_samples) if grey_samples > 0 else 0
+        grey_w = min(grey_width, self.info.width)
+        self.grey_size = (grey_w, max(1, round(self.info.height * grey_w / self.info.width)))
 
     def __iter__(self) -> Iterator[SampledFrame]:
         with av.open(self.path) as container:
@@ -103,7 +116,11 @@ class VideoReader:
             interpolation = cv2.INTER_AREA if shrinking else cv2.INTER_LINEAR
             image = cv2.resize(region, self.size, interpolation=interpolation)
         rois = {name: full[b[1] : b[3], b[0] : b[2]].copy() for name, b in self.rois.items()}
-        return SampledFrame(index, index / self.info.fps, image, rois)
+        grey = None
+        if self.grey_every and (index // self.stride) % self.grey_every == 0:
+            small = cv2.resize(full, self.grey_size, interpolation=cv2.INTER_AREA)
+            grey = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        return SampledFrame(index, index / self.info.fps, image, rois, grey)
 
     def _check_inside_frame(self, name: str, box: Box) -> None:
         x0, y0, x1, y1 = box

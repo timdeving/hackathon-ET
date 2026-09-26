@@ -217,6 +217,9 @@ def _smooth(values: np.ndarray, window: int, causal: bool) -> np.ndarray:
     window shrinks rather than padding, so the first and last positions stay where they were
     seen."""
     values = values.astype(np.float64)
+    # np.convolve's "same" output is as long as the longer input, so a track shorter than the
+    # window would come back longer: keep the window odd and no longer than the track.
+    window = min(window, len(values) if len(values) % 2 else len(values) - 1)
     if window <= 1 or len(values) < 2:
         return values
     kernel, ones = np.ones(window), np.ones(len(values))

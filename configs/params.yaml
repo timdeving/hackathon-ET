@@ -94,6 +94,11 @@ alignment:
   # tools/align_videos.py reports inliers and errors on the samples.
   # Both pictures are resized to this width for matching: the width of configs/scene/reference.jpg.
   match_width: 1920
+  # In the submission, Part A builds the video's background from this many grey frames spread
+  # over it, collected during its one decoding pass (about 80 MB at match_width). The samples'
+  # backgrounds, from 80-150 frames, aligned to within 1 px; 40 keep traffic out of the median
+  # except where it stands still most of the video. Starting value.
+  background_frames: 40
   # SIFT features kept per picture, strongest first.
   features: 8000
   # Lowe's ratio test: keep a match only if it beats the second-best by this factor (Lowe, 2004).

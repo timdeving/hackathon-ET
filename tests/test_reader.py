@@ -53,6 +53,15 @@ def test_rois_are_full_resolution_copies(tiny_video):
     assert light.flags.owndata  # a copy, so it doesn't keep the whole 4K frame alive
 
 
+def test_frames_spread_over_the_video_carry_a_grey_copy_of_the_whole_frame(tiny_video):
+    reader = VideoReader(tiny_video.path, stride=2, width=16, grey_samples=5, grey_width=32)
+    greys = [frame for frame in reader if frame.grey is not None]
+    assert [frame.index for frame in greys] == [0, 10, 20, 30, 40]  # every 5th of 25 frames
+    assert greys[0].grey.shape == (24, 32)  # the whole 64 x 48 frame, grey, 32 px wide
+    big = next(iter(VideoReader(tiny_video.path, grey_samples=1, grey_width=1920)))
+    assert big.grey.shape == (48, 64)  # never enlarged
+
+
 @pytest.mark.parametrize(
     "settings",
     [{"stride": 0}, {"crop": (0, 0, 65, 48)}, {"rois": {"light": (5, 5, 5, 9)}}],

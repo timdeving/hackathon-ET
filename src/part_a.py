@@ -1,9 +1,9 @@
 """Part A: turn one video into a list of timed events.
 
 Pipeline: perception (decode, detect and track in one pass; src/perception/pipeline.py), then
-per-object features and one rule per enabled class (src/rules/), then finalize_events().
-Perception stops at a deadline that leaves the harness time for Part B (src/budget.py); the
-rules after it take seconds, which the budget's margin covers.
+track stitching, camera alignment, per-object features and one rule per enabled class
+(src/rules/), then finalize_events(). Perception stops at a deadline that leaves the harness time
+for Part B (src/budget.py); the steps after it take seconds, which the budget's margin covers.
 """
 from __future__ import annotations
 
@@ -13,24 +13,29 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
+import cv2
 import numpy as np
 
 from src.budget import harness_read_seconds, part_a_seconds, part_b_seconds
 from src.config import CONFIG_DIR, load_params
 from src.events import Segment
-from src.features.tracks import NoAlignment
+from src.features.tracks import NoAlignment, PointMapper
 from src.perception.pipeline import Perception, PerceptionResult
+from src.perception.stitching import stitch_tracks
 from src.postprocess.segments import finalize_events
 from src.rules import find_events
+from src.scene.alignment import estimate_alignment, view_change
 from src.scene.scene_map import SceneMap
 from src.video.probe import probe_video
 
 log = logging.getLogger(__name__)
 
 SCENE_MAP_PATH = CONFIG_DIR / "scene_map.json"
+REFERENCE_PICTURE_PATH = CONFIG_DIR / "scene" / "reference.jpg"  # what the map was drawn on
 
 _perception: Perception | None = None  # loaded once per process
 _scene_map: SceneMap | None = None  # likewise, on first use
+_reference_picture: np.ndarray | None = None  # likewise
 
 
 def load_models() -> None:
@@ -113,8 +118,35 @@ def _find_events(result: PerceptionResult, params: Mapping[str, Any]) -> list[Se
     scene = _get_scene_map()
     if scene is None:
         return []
-    # Camera alignment (src/scene/alignment.py, from the GPU PC) replaces NoAlignment() here.
-    return find_events(result, NoAlignment(), scene, params, skip_failures=True)
+    stitched = stitch_tracks(result, params)
+    return find_events(stitched, _align(result, scene, params), scene, params, skip_failures=True)
+
+
+def _align(result: PerceptionResult, scene: SceneMap, params: Mapping[str, Any]) -> PointMapper:
+    """This video's camera alignment onto the picture the scene map was drawn on.
+
+    Perception built the video's background during its pass; it's matched with the reference
+    picture. Without either, the video is treated as framed exactly like the reference.
+    """
+    reference = _get_reference_picture()
+    if result.background is None or reference is None:
+        return NoAlignment()
+    size = (result.info.width, result.info.height)
+    alignment = estimate_alignment(
+        result.background, reference, params["alignment"], size, (scene.width, scene.height)
+    )
+    change = view_change(alignment.homography, size)
+    log.info(
+        "%s: camera alignment %s: %d matches, error %.1f px; view moved up to %.0f px, "
+        "rotated %.2f degrees",
+        result.info.name,
+        "ok" if alignment.ok else "failed, treated as unshifted",
+        alignment.inliers,
+        alignment.error_px,
+        change["max_corner_shift_px"],
+        change["rotation_deg"],
+    )
+    return alignment
 
 
 def _get_scene_map() -> SceneMap | None:
@@ -125,6 +157,18 @@ def _get_scene_map() -> SceneMap | None:
     if _scene_map is None:
         log.error("no scene map at %s: the rules can't run, so no events", SCENE_MAP_PATH)
     return _scene_map
+
+
+def _get_reference_picture() -> np.ndarray | None:
+    """The picture the scene map was drawn on, loaded once per process; None, with an error
+    logged, if it's missing (camera alignment is then skipped)."""
+    global _reference_picture
+    if _reference_picture is None and REFERENCE_PICTURE_PATH.exists():
+        _reference_picture = cv2.imread(str(REFERENCE_PICTURE_PATH))
+    if _reference_picture is None:
+        log.error("no reference picture at %s: videos are treated as unshifted",
+                  REFERENCE_PICTURE_PATH)
+    return _reference_picture
 
 
 def _get_perception() -> Perception:

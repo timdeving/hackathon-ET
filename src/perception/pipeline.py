@@ -76,6 +76,9 @@ class PerceptionResult:
     seconds: float  # processing time
     n_analysed: int  # frames the detector saw: 0, stride, 2 * stride, ...
     complete: bool  # False if perception stopped early to stay inside the time budget
+    # The video's empty road in grey (per-pixel median of frames spread over it), for camera
+    # alignment; None if none was collected. Not stored in the cache.
+    background: np.ndarray | None = None
 
 
 class Perception:
@@ -84,13 +87,15 @@ class Perception:
     Args:
         detector: turns a BGR working image into Detections (src.perception.detector.Detector,
             or a stand-in in tests).
-        params: the whole of configs/params.yaml; the `video` and `tracker` sections are used.
+        params: the whole of configs/params.yaml; the `video`, `tracker` and `alignment`
+            sections are used.
     """
 
     def __init__(self, detector: DetectorLike, params: Mapping[str, Any]) -> None:
         self.detector = detector
         self.video_params = params["video"]
         self.tracker_params = params["tracker"]
+        self.alignment_params = params["alignment"]
         if detector.input_size[1] != self.video_params["width"]:
             raise ValueError(
                 f"video.width is {self.video_params['width']} px, but the detector expects "
@@ -109,9 +114,11 @@ class Perception:
             stride=self.video_params["stride"],
             width=self.video_params["width"],
             threads=self.video_params["decode_threads"],
+            grey_samples=self.alignment_params["background_frames"],
+            grey_width=self.alignment_params["match_width"],
         )
         tracker = ByteTracker(reader.info.fps / reader.stride, self.tracker_params)
-        detection_rows, track_rows = [], []
+        detection_rows, track_rows, greys = [], [], []
         n_analysed, complete = 0, True
         with closing(prefetch(reader, depth=PREFETCH_FRAMES)) as frames:
             for frame in frames:
@@ -120,6 +127,8 @@ class Perception:
                 found = Detections(full_res, found.scores, found.class_ids)
                 detection_rows.append(_detection_rows(frame.index, found))
                 track_rows.append(_track_rows(frame.index, tracker.update(found), found))
+                if frame.grey is not None:
+                    greys.append(frame.grey)
                 n_analysed += 1
                 if deadline is not None and time.perf_counter() > deadline:
                     complete = frame.index + reader.stride >= reader.info.n_frames
@@ -132,6 +141,7 @@ class Perception:
             seconds=time.perf_counter() - start,
             n_analysed=n_analysed,
             complete=complete,
+            background=_median(greys),
         )
 
 
@@ -161,6 +171,13 @@ def _track_rows(frame_index: int, tracked: list[TrackedBox], found: Detections) 
 
 def _concatenate(parts: list[np.ndarray], dtype: np.dtype) -> np.ndarray:
     return np.concatenate(parts) if parts else np.zeros(0, dtype=dtype)
+
+
+def _median(pictures: list[np.ndarray]) -> np.ndarray | None:
+    """Per-pixel median of equally sized pictures: moving traffic vanishes, the road stays."""
+    if not pictures:
+        return None
+    return np.median(np.stack(pictures), axis=0).astype(np.uint8)
 
 
 def _confirmed_only(tracks: np.ndarray) -> np.ndarray:
