@@ -6,6 +6,7 @@ find_events() runs the enabled ones. Enabling a class is a team decision (params
 """
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -15,6 +16,8 @@ from src.perception.pipeline import PerceptionResult
 from src.rules import failure_to_yield, jaywalking, solid_line_crossing, wrong_way
 from src.rules.common import RuleContext
 from src.scene.scene_map import SceneMap
+
+log = logging.getLogger(__name__)
 
 RULES: dict[str, Callable[[RuleContext], list[Segment]]] = {
     module.LABEL: module.find
@@ -28,11 +31,14 @@ def find_events(
     scene: SceneMap,
     params: Mapping[str, Any],
     labels: Sequence[str] | None = None,
+    skip_failures: bool = False,
 ) -> list[Segment]:
     """Raw segments of every rule in `labels` (default: params `rules.enabled`), for one video.
 
     mapper maps the video's pixels onto the reference picture the scene map is drawn on.
     Segments still need finalize_events(): they may overlap, flicker, or run past the video.
+    skip_failures: a rule that raises is logged and skipped, so one rule's bug costs only its
+    own class (the submission); otherwise the error propagates (development).
     """
     labels = list(params["rules"]["enabled"] if labels is None else labels)
     missing = sorted(set(labels) - set(RULES))
@@ -43,5 +49,12 @@ def find_events(
     features = compute_features(result, mapper, scene, params["features"])
     segments = []
     for label in labels:
-        segments += RULES[label](RuleContext(features, scene, params["rules"][label]))
+        context = RuleContext(features, scene, params["rules"][label])
+        if not skip_failures:
+            segments += RULES[label](context)
+            continue
+        try:
+            segments += RULES[label](context)
+        except Exception:  # the submission keeps the other classes' events
+            log.exception("the %s rule failed; that class gets no events here", label)
     return segments

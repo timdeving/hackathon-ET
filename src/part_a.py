@@ -1,27 +1,36 @@
 """Part A: turn one video into a list of timed events.
 
 Pipeline: perception (decode, detect and track in one pass; src/perception/pipeline.py), then
-per-track features and one rule per class (not built yet), then finalize_events(). Perception
-stops at a deadline that leaves the harness time for Part B (src/budget.py).
+per-object features and one rule per enabled class (src/rules/), then finalize_events().
+Perception stops at a deadline that leaves the harness time for Part B (src/budget.py); the
+rules after it take seconds, which the budget's margin covers.
 """
 from __future__ import annotations
 
 import logging
 import random
 import time
+from collections.abc import Mapping
+from typing import Any
 
 import numpy as np
 
 from src.budget import harness_read_seconds, part_a_seconds, part_b_seconds
-from src.config import load_params
+from src.config import CONFIG_DIR, load_params
 from src.events import Segment
-from src.perception.pipeline import Perception
+from src.features.tracks import NoAlignment
+from src.perception.pipeline import Perception, PerceptionResult
 from src.postprocess.segments import finalize_events
+from src.rules import find_events
+from src.scene.scene_map import SceneMap
 from src.video.probe import probe_video
 
 log = logging.getLogger(__name__)
 
+SCENE_MAP_PATH = CONFIG_DIR / "scene_map.json"
+
 _perception: Perception | None = None  # loaded once per process
+_scene_map: SceneMap | None = None  # likewise, on first use
 
 
 def load_models() -> None:
@@ -70,7 +79,7 @@ def detect_events(video_path: str) -> list[list]:
         log.error("%s: Part B's decoding alone may not fit in the time budget", info.name)
 
     result = perception.run(video_path, deadline=start + max(allowed, 0.0))
-    segments: list[Segment] = []  # no rules yet
+    segments = _find_events(result, params)
     events = finalize_events(segments, info.duration, params["postprocess"])
     if not result.complete:
         covered = result.n_analysed * result.stride / info.fps
@@ -94,6 +103,28 @@ def detect_events(video_path: str) -> list[list]:
         elapsed / info.duration,
     )
     return events
+
+
+def _find_events(result: PerceptionResult, params: Mapping[str, Any]) -> list[Segment]:
+    """Raw segments of the enabled rules; none while no class is enabled or the scene map is
+    missing. A rule that fails costs only its own class."""
+    if not params["rules"]["enabled"]:
+        return []
+    scene = _get_scene_map()
+    if scene is None:
+        return []
+    # Camera alignment (src/scene/alignment.py, from the GPU PC) replaces NoAlignment() here.
+    return find_events(result, NoAlignment(), scene, params, skip_failures=True)
+
+
+def _get_scene_map() -> SceneMap | None:
+    """The scene map, loaded once per process; None, with an error logged, until it's drawn."""
+    global _scene_map
+    if _scene_map is None and SCENE_MAP_PATH.exists():
+        _scene_map = SceneMap.load(SCENE_MAP_PATH)
+    if _scene_map is None:
+        log.error("no scene map at %s: the rules can't run, so no events", SCENE_MAP_PATH)
+    return _scene_map
 
 
 def _get_perception() -> Perception:
