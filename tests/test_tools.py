@@ -22,15 +22,20 @@ def test_median_image_removes_what_moves():
     np.testing.assert_array_equal(median_image(frames), frames[0])  # also across row strips
 
 
-def test_frame_extraction_writes_a_background_and_sample_frames(tiny_video, tmp_path, run_python):
+def test_frame_extraction_writes_backgrounds_and_sample_frames(tiny_video, tmp_path, run_python):
     out = tmp_path / "frames"
-    run = run_python("-m", "tools.extract_frames", tiny_video.path, "--out", out, "--samples", "10")
+    # Run as a plain script, the way SCENE_BACKGROUNDS.md runs it: it must not need src/.
+    run = run_python("tools/extract_frames.py", tiny_video.path, "--out", out, "--samples", "10")
     assert run.returncode == 0, run.stdout + run.stderr
     folder = out / tiny_video.path.name
     background = cv2.imread(str(folder / "background.png"))
     assert background.shape == (tiny_video.size[1], tiny_video.size[0], 3)
-    for name in ("start", "middle", "end"):
-        assert (folder / f"frame_{name}.jpg").exists()
+    names = ["background_preview.jpg", "activity.jpg"] + [
+        f"frame_{name}.jpg" for name in ("start", "middle", "end")
+    ]
+    for name in names:
+        assert (folder / name).exists()
+    assert (out / "all_backgrounds.jpg").exists()
 
 
 def test_determinism_check_compares_predictions_but_not_timings(tmp_path, run_python):
