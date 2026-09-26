@@ -13,7 +13,16 @@ from typing import Any
 from src.events import Segment
 from src.features.tracks import PointMapper, compute_features
 from src.perception.pipeline import PerceptionResult
-from src.rules import failure_to_yield, jaywalking, solid_line_crossing, wrong_way
+from src.rules import (
+    congestion,
+    failure_to_yield,
+    illegal_u_turn,
+    jaywalking,
+    solid_line_crossing,
+    stop_line,
+    stopped_vehicle,
+    wrong_way,
+)
 from src.rules.common import RuleContext
 from src.scene.scene_map import SceneMap
 
@@ -21,7 +30,18 @@ log = logging.getLogger(__name__)
 
 RULES: dict[str, Callable[[RuleContext], list[Segment]]] = {
     module.LABEL: module.find
-    for module in (jaywalking, failure_to_yield, wrong_way, solid_line_crossing)
+    for module in (
+        # Batch A: needs only the scene map and the tracks
+        jaywalking,
+        failure_to_yield,
+        wrong_way,
+        solid_line_crossing,
+        # Batch B: stops and queues; red inferred from the queue until lights are read
+        stopped_vehicle,
+        congestion,
+        stop_line,
+        illegal_u_turn,
+    )
 }
 
 

@@ -13,22 +13,24 @@ PERSON, CAR, MOTORCYCLE, TRUCK = 0, 2, 3, 7
 FPS = 10.0  # with stride 1: one update every 0.1 s, so times are easy to reason about
 
 
-def street_scene() -> dict:
+def street_scene(exits: dict[str, list[str]] | None = None) -> dict:
     """A 1000x600 picture. The road runs from y = 200 to 500, with pavements above and below.
 
     West of x = 600 it has two carriageways split by a median (y = 340-360): below it, two
     incoming lanes flowing right (east) towards a stop line at x = 600; above it, two outgoing
     lanes flowing left. A zebra crossing covers x = 600-640; east of it is the junction
-    (x = 640-800), then open road. A solid line runs diagonally from (0, 400) to (600, 460).
+    (x = 640-800), then open road with a bus stop at the lower kerb (x = 850-950). A solid line
+    runs diagonally from (0, 400) to (600, 460). exits: allowed exits per lane name (default:
+    unknown).
     """
     def band(x0: float, y0: float, x1: float, y1: float) -> list[list[float]]:
         return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
 
-    def lane(role: str, y0: float, y1: float) -> dict:
+    def lane(name: str, role: str, y0: float, y1: float) -> dict:
         middle = (y0 + y1) / 2
         flow = [[20, middle], [580, middle]] if role == "in" else [[580, middle], [20, middle]]
-        return {"arm": "west", "role": role, "signal": role == "in", "exits": None,
-                "polygon": band(0, y0, 600, y1), "flow": flow}
+        return {"arm": "west", "role": role, "signal": role == "in",
+                "exits": (exits or {}).get(name), "polygon": band(0, y0, 600, y1), "flow": flow}
 
     return {
         "format": 1,
@@ -38,16 +40,19 @@ def street_scene() -> dict:
         "crossings": {"zebra": band(600, 200, 640, 500)},
         "junction": band(640, 200, 800, 500),
         "lanes": {
-            "west_in_1": lane("in", 360, 430),
-            "west_in_2": lane("in", 430, 500),
-            "west_out_1": lane("out", 270, 340),
-            "west_out_2": lane("out", 200, 270),
+            name: lane(name, role, y0, y1)
+            for name, role, y0, y1 in [
+                ("west_in_1", "in", 360, 430),
+                ("west_in_2", "in", 430, 500),
+                ("west_out_1", "out", 270, 340),
+                ("west_out_2", "out", 200, 270),
+            ]
         },
         "stop_lines": {"west": [[600, 360], [600, 500]]},
         "solid_lines": {"divider": [[0, 400], [600, 460]]},
         "lights": {},
         "parking": {},
-        "bus_stops": {},
+        "bus_stops": {"east_kerb": band(850, 460, 950, 500)},
         "no_uturn": {},
         "ground_points": {},
         "image_to_ground": None,

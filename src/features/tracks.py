@@ -117,6 +117,11 @@ class TrackFeatures:
                 continue
             yield info, self.rows[info["start"] : info["stop"]]
 
+    def rows_of(self, class_ids: Sequence[int], pedestrians_only: bool = False) -> np.ndarray:
+        """All rows of the tracks tracks_of() yields, in one array."""
+        parts = [rows for _, rows in self.tracks_of(class_ids, pedestrians_only)]
+        return np.concatenate(parts) if parts else self.rows[:0]
+
 
 def ground_points(rows: np.ndarray) -> np.ndarray:
     """(N, 2) ground points of feature rows, for scene-map lookups."""

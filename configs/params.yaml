@@ -145,6 +145,38 @@ rules:
     # The second corner must cross within this many seconds of the first; a lane change takes
     # 1-3 s.
     max_sec: 4.0
+  stopped_vehicle:
+    # Stationary at least this long: the task's definition.
+    min_sec: 10.0
+    # Moments of apparent motion (box jitter) up to this long don't end a stop.
+    gap_sec: 1.0
+    # Queued, not stopped: within this many of its own box heights of its lane's stop line, or of
+    # a stationary vehicle ahead in the same lane.
+    queue_gap: 2.5
+  congestion:
+    # Crawling: the median speed of a direction's vehicles below this (box heights per second;
+    # the same as features.moving_speed).
+    crawl: 0.3
+    # At least this many vehicles in the direction's lanes...
+    min_vehicles: 3
+    # ...occupying at least this share of them ("across all lanes").
+    lane_share: 1.0
+    # Long enough to outlast a red light: a red-light queue that clears on the next green isn't
+    # congestion (labelling convention, pending organizer question Q1).
+    min_sec: 60.0
+    # Flickers up to this long (a lane briefly empty, a missed detection) don't end a jam.
+    gap_sec: 5.0
+  stop_line:
+    # Stationary past the line at least this long (docs/RULES_DESIGN.md §5).
+    min_sec: 1.0
+    gap_sec: 0.5
+  illegal_u_turn:
+    # A U-turn: the heading reverses by at least turn_deg (150: within 30 deg of reversed) within
+    # max_sec; it starts where the heading leaves its earlier direction by start_deg
+    # (docs/RULES_DESIGN.md §5).
+    turn_deg: 150
+    start_deg: 20
+    max_sec: 20.0
 
 postprocess:
   # Applied to every class unless overridden under per_class (same keys, per class id).
