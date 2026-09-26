@@ -88,6 +88,29 @@ tracker:
     traffic_light: [9]
     animal: [15, 16, 17, 18, 19]
 
+alignment:
+  # Camera alignment (src/scene/alignment.py): each video's empty-road background is matched with
+  # the reference picture's, SIFT features plus a RANSAC homography. Starting values;
+  # tools/align_videos.py reports inliers and errors on the samples.
+  # Both pictures are resized to this width for matching: the width of configs/scene/reference.jpg.
+  match_width: 1920
+  # SIFT features kept per picture, strongest first.
+  features: 8000
+  # Lowe's ratio test: keep a match only if it beats the second-best by this factor (Lowe, 2004).
+  ratio: 0.75
+  # A match agrees with a homography if it lands within this many pixels, at match_width
+  # (4 px at 4K). RANSAC gives up after ransac_iterations samples.
+  ransac_px: 2.0
+  ransac_iterations: 5000
+  # Sanity check: with fewer agreeing matches than this, or a bigger change of view, the estimate
+  # isn't trusted and the video is treated as unshifted. The samples differ by up to 139 px (3.6%
+  # of the width), 1.1 degrees and 1.4% of zoom (PLAN.md, measured facts); the limits are
+  # RULES_DESIGN.md §1's, well above that.
+  min_inliers: 50
+  max_shift: 0.10  # largest corner shift, as a fraction of the frame width
+  max_rotation_deg: 5.0
+  max_zoom: 0.10  # largest change of scale, as a fraction
+
 features:
   # Per-object features (src/features/tracks.py; docs/RULES_DESIGN.md §2). Speeds are in box
   # heights per second until the scene map has ground points in metres. Every value here is a
@@ -188,3 +211,23 @@ postprocess:
     # Starting value: the starter kit's advice to drop blips < 0.5 s; tune at tIoU 0.7.
     min_duration_sec: 0.5
   per_class: {}
+
+stitching:
+  # Track stitching (src/perception/stitching.py), Part A only: a track that vanishes
+  # mid-picture is joined to one of the same class group that appears where its motion predicts.
+  # Starting values from the samples' track caches (2026-09-26): of 2692 tracks that end
+  # mid-picture, the best same-group successor within 8 s is closer than 0.25 box heights for 556,
+  # 0.25-0.5 for 414, 0.5-1 for 384, then spread evenly out to 10 box heights (coincidences).
+  # The two ends, each carried by its own velocity to the middle of the gap, must meet within this
+  # many box heights: the edge of the peak of close successors, for precision.
+  max_distance: 0.5
+  # Longest gap joined: 84% of the close successors (under 1 box height) reappear within 5 s.
+  max_gap_sec: 5.0
+  # Box heights may change by at most this factor across the gap: a partly hidden object's box
+  # shrinks (the close successors' height ratios span 0.78-1.84 from the 5th to 95th percentile).
+  max_size_change: 2.0
+  # A track whose box ends or starts within this fraction of the picture's border left or entered
+  # the picture, and is never joined.
+  edge_margin: 0.02
+  # An end's velocity: the least-squares slope of the positions over its last (or first) second.
+  velocity_sec: 1.0
