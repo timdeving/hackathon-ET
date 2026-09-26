@@ -40,8 +40,10 @@ def main() -> None:
     height, width = args.size
 
     model = YOLO(str(WEIGHTS_DIR / f"{args.model}.pt"))  # downloads the official weights once
+    # nms=False keeps YOLO26's NMS-free head; Ultralytics' default (None) exports the raw head,
+    # which needs NMS. Models without that head (YOLO11) export their raw output either way.
     exported = model.export(
-        format="torchscript", imgsz=[height, width], half=True, device=args.device
+        format="torchscript", imgsz=[height, width], half=True, device=args.device, nms=False
     )
     target = WEIGHTS_DIR / f"{args.model}_{height}x{width}_fp16.torchscript"
     shutil.move(Path(exported), target)
