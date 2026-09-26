@@ -249,3 +249,45 @@ stitching:
   edge_margin: 0.02
   # An end's velocity: the least-squares slope of the positions over its last (or first) second.
   velocity_sec: 1.0
+
+signal:
+  # Reading the traffic lights (src/scene/signals.py; docs/SIGNAL_DESIGN.md). Values measured on
+  # the signal heads in 12 full-size frames of the samples (three per video, 2026-09-27); check
+  # them against the light snapshots of whole videos (tools/cache_tracks.py --light-snapshots).
+  # Each head's window: its box on the reference picture grown by this many pixels on every side,
+  # in the video's own pixels (alignment is only known after the pass). The heads sit up to 129 px
+  # from their reference boxes in the samples (left_post in C3902; median_tip 94 px), so this
+  # leaves room for a test video shifted almost twice as far. The design's 160 left 31 px.
+  margin_px: 240
+  # Lit pixels are counted per block of cell_px x cell_px: about 5 x 5 blocks per 40-px lamp.
+  cell_px: 8
+  # A pixel is lit when it is strongly coloured and not dark (OpenCV HSV, 0-255). Lit lamps are
+  # saturated in sun and shade alike (S 185-250 at their core), but their brightness isn't: V
+  # 95-130 in the morning sun (C3896, C3897), 230-255 in the afternoon shade (C3902, C3905); the
+  # design's V >= 200 missed every morning lamp. Unlit lamps and the housing stay below S 100.
+  lit_saturation: 150
+  lit_value: 70
+  # Hue ranges of each colour (OpenCV hue, 0-179). Only warm against green matters: a head's
+  # position tells a red lamp from an amber one, and an amber lamp reads half "red" (C3902).
+  hues:
+    red: [[0, 10], [165, 179]]
+    amber: [[11, 30]]
+    green: [[40, 95]]
+  # Where one lamp ends and the next begins, top to bottom, as fractions of the head's box height:
+  # halfway between the lamp centres measured in the samples' frames (vehicle head: red
+  # 0.22-0.30, amber 0.49, green 0.69-0.73; pedestrian head: red 0.30-0.38, green 0.62-0.65).
+  # The boxes hold the whole head, bracket included, so the lamps don't sit in equal thirds.
+  # Re-measure if a box in the scene map is redrawn.
+  lamp_bands:
+    vehicle: [0.39, 0.60]
+    pedestrian: [0.5]
+  # A head shows its brightest lamp if that lamp has at least this many lit pixels, else it is
+  # unknown (hidden, or glare). Lit lamps had 70-325 in the samples' frames.
+  min_lit_px: 20
+  # Over time: a majority vote over smooth_sec; then a phase shorter than min_phase_sec (amber:
+  # amber_min_sec) becomes unknown, and an unknown gap shorter than min_phase_sec inside one
+  # phase takes that phase. Flicker and passing occlusions are shorter than any real phase;
+  # amber lasts about 3 s. Starting values (docs/SIGNAL_DESIGN.md §6).
+  smooth_sec: 0.5
+  min_phase_sec: 2.0
+  amber_min_sec: 1.0

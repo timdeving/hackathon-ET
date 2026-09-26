@@ -6,15 +6,18 @@ every later stage uses, and passed to a new tracker for each video. The result i
 (numpy structured arrays): every detection, and every track position. The tables are also what
 the cache stores for rule development on laptops.
 
+The same pass cuts a window around each traffic light out of every analysed frame and keeps only
+its lit-pixel counts (src/scene/signals.py), for reading the signal phases afterwards.
+
 This module doesn't import PyTorch: the detector is passed in, so the pipeline can be tested
 with a stand-in and the tables loaded anywhere.
 """
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import closing
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -24,7 +27,7 @@ from src.perception.boxes import Detections
 from src.perception.tracker import ByteTracker, TrackedBox
 from src.video.prefetch import prefetch
 from src.video.probe import VideoInfo
-from src.video.reader import VideoReader
+from src.video.reader import Box, SampledFrame, VideoReader
 
 PREFETCH_FRAMES = 8  # decoded frames waiting for the detector: enough to ride out a slow one
 
@@ -79,6 +82,11 @@ class PerceptionResult:
     # The video's empty road in grey (per-pixel median of frames spread over it), for camera
     # alignment; None if none was collected. Not stored in the cache.
     background: np.ndarray | None = None
+    # Traffic lights, by name: uint8 [n_analysed, 3, rows, cols], the lit red, amber and green
+    # pixels in each block of the light's window (src/scene/signals.py lamp_cells), and the
+    # windows themselves, in the video's pixels. Empty when perception ran without windows.
+    lights: Mapping[str, np.ndarray] = field(default_factory=dict)
+    light_windows: Mapping[str, Box] = field(default_factory=dict)
 
 
 class Perception:
@@ -87,8 +95,8 @@ class Perception:
     Args:
         detector: turns a BGR working image into Detections (src.perception.detector.Detector,
             or a stand-in in tests).
-        params: the whole of configs/params.yaml; the `video`, `tracker` and `alignment`
-            sections are used.
+        params: the whole of configs/params.yaml; the `video`, `tracker`, `alignment` and
+            `signal` sections are used.
     """
 
     def __init__(self, detector: DetectorLike, params: Mapping[str, Any]) -> None:
@@ -96,29 +104,47 @@ class Perception:
         self.video_params = params["video"]
         self.tracker_params = params["tracker"]
         self.alignment_params = params["alignment"]
+        self.signal_params = params["signal"]
         if detector.input_size[1] != self.video_params["width"]:
             raise ValueError(
                 f"video.width is {self.video_params['width']} px, but the detector expects "
                 f"images {detector.input_size[1]} px wide; the two must match"
             )
 
-    def run(self, video_path: str | Path, deadline: float | None = None) -> PerceptionResult:
+    def run(
+        self,
+        video_path: str | Path,
+        deadline: float | None = None,
+        rois: Mapping[str, Box] | None = None,
+        on_frame: Callable[[SampledFrame], None] | None = None,
+    ) -> PerceptionResult:
         """Perceive one video.
 
         deadline: a time.perf_counter() value. When it passes, perception stops after the frame
-        in progress and returns what it has (at least one frame is always analysed).
+            in progress and returns what it has (at least one frame is always analysed).
+        rois: named windows around traffic lights, in full-resolution pixels
+            (src/scene/signals.py light_windows). Each analysed frame's crop of them is reduced
+            to lit-pixel counts, returned as PerceptionResult.lights.
+        on_frame: called with every analysed frame once it's processed; development tools use
+            it to save light snapshots.
         """
+        # Imported here: src.scene.signals uses the rules' phase codes, and the rules import
+        # this module.
+        from src.scene.signals import lamp_cells
+
         start = time.perf_counter()
         reader = VideoReader(
             video_path,
             stride=self.video_params["stride"],
             width=self.video_params["width"],
+            rois=rois,
             threads=self.video_params["decode_threads"],
             grey_samples=self.alignment_params["background_frames"],
             grey_width=self.alignment_params["match_width"],
         )
         tracker = ByteTracker(reader.info.fps / reader.stride, self.tracker_params)
         detection_rows, track_rows, greys = [], [], []
+        cells: dict[str, list[np.ndarray]] = {name: [] for name in reader.rois}
         n_analysed, complete = 0, True
         with closing(prefetch(reader, depth=PREFETCH_FRAMES)) as frames:
             for frame in frames:
@@ -127,8 +153,12 @@ class Perception:
                 found = Detections(full_res, found.scores, found.class_ids)
                 detection_rows.append(_detection_rows(frame.index, found))
                 track_rows.append(_track_rows(frame.index, tracker.update(found), found))
+                for name, crop in frame.rois.items():
+                    cells[name].append(lamp_cells(crop, self.signal_params))
                 if frame.grey is not None:
                     greys.append(frame.grey)
+                if on_frame is not None:
+                    on_frame(frame)
                 n_analysed += 1
                 if deadline is not None and time.perf_counter() > deadline:
                     complete = frame.index + reader.stride >= reader.info.n_frames
@@ -142,6 +172,8 @@ class Perception:
             n_analysed=n_analysed,
             complete=complete,
             background=_median(greys),
+            lights={name: np.stack(grids) for name, grids in cells.items() if grids},
+            light_windows=dict(reader.rois),
         )
 
 

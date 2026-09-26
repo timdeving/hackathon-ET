@@ -97,6 +97,23 @@ def test_the_background_is_the_empty_scene(tiny_video):
     assert result.background.max() < 240
 
 
+def test_light_windows_are_kept_as_lit_pixel_counts(tiny_video):
+    """Each analysed frame's crop of a light window becomes a lamp_cells grid; the clip has no
+    coloured lights, so every count is zero."""
+    seen = []
+    perception = Perception(SquareDetector(), params_with(stride=2, width=WORKING_WIDTH))
+    result = perception.run(tiny_video.path, rois={"head": (8, 4, 40, 28)}, on_frame=seen.append)
+    assert result.light_windows == {"head": (8, 4, 40, 28)}
+    assert result.lights["head"].shape == (result.n_analysed, 3, 3, 4)  # 24 x 32 px in 8-px blocks
+    assert result.lights["head"].dtype == np.uint8 and result.lights["head"].max() == 0
+    assert [frame.index for frame in seen] == list(range(0, tiny_video.n_frames, 2))
+
+
+def test_without_light_windows_there_is_no_light_data(tiny_video):
+    result = Perception(SquareDetector(), params_with(width=WORKING_WIDTH)).run(tiny_video.path)
+    assert result.lights == {} and result.light_windows == {}
+
+
 def test_detector_and_working_width_must_agree():
     with pytest.raises(ValueError, match="must match"):
         Perception(SquareDetector(), params_with(width=64))

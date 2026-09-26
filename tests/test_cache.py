@@ -1,6 +1,9 @@
 """The perception cache: what is saved loads back unchanged; versions follow the settings."""
 from __future__ import annotations
 
+import dataclasses
+import json
+
 import numpy as np
 
 from src.perception.cache import load_result, save_result, settings_version
@@ -31,6 +34,26 @@ def test_a_saved_result_loads_back_unchanged(tmp_path):
     assert (loaded.n_analysed, loaded.complete) == (2, True)
     np.testing.assert_array_equal(loaded.detections, small_result().detections)
     np.testing.assert_array_equal(loaded.tracks, small_result().tracks)
+
+
+def test_light_data_is_saved_and_loaded_back(tmp_path):
+    grid = np.arange(2 * 3 * 4 * 5, dtype=np.uint8).reshape(2, 3, 4, 5)
+    result = dataclasses.replace(
+        small_result(), lights={"head": grid}, light_windows={"head": (10, 20, 50, 52)}
+    )
+    loaded = load_result(save_result(result, tmp_path, SETTINGS))
+    np.testing.assert_array_equal(loaded.lights["head"], grid)
+    assert loaded.light_windows == {"head": (10, 20, 50, 52)}
+
+
+def test_a_cache_made_before_the_lights_loads_without_them(tmp_path):
+    folder = save_result(small_result(), tmp_path, SETTINGS)
+    assert not (folder / "lights.npz").exists()
+    meta = json.loads((folder / "meta.json").read_text())
+    del meta["light_windows"]  # as in the caches made before the lights were read
+    (folder / "meta.json").write_text(json.dumps(meta))
+    loaded = load_result(folder)
+    assert loaded.lights == {} and loaded.light_windows == {}
 
 
 def test_the_version_follows_the_settings():

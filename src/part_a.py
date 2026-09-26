@@ -1,9 +1,11 @@
 """Part A: turn one video into a list of timed events.
 
-Pipeline: perception (decode, detect and track in one pass; src/perception/pipeline.py), then
-track stitching, camera alignment, per-object features and one rule per enabled class
-(src/rules/), then finalize_events(). Perception stops at a deadline that leaves the harness time
-for Part B (src/budget.py); the steps after it take seconds, which the budget's margin covers.
+Pipeline: perception (decode, detect and track in one pass, cutting the traffic lights out on
+the way; src/perception/pipeline.py), then camera alignment, the signal phases read from the
+lights (src/scene/signals.py), track stitching, per-object features and one rule per enabled
+class (src/rules/), then finalize_events(). Perception stops at a deadline that leaves the
+harness time for Part B (src/budget.py); the steps after it take seconds, which the budget's
+margin covers.
 """
 from __future__ import annotations
 
@@ -27,7 +29,9 @@ from src.rules import find_events
 from src.rules.common import PhaseTimeline
 from src.scene.alignment import estimate_alignment, view_change
 from src.scene.scene_map import SceneMap
-from src.video.probe import probe_video
+from src.scene.signals import arm_phases, light_windows
+from src.video.probe import VideoInfo, probe_video
+from src.video.reader import Box
 
 log = logging.getLogger(__name__)
 
@@ -84,8 +88,15 @@ def detect_events(video_path: str) -> list[list]:
     if allowed <= 0:
         log.error("%s: Part B's decoding alone may not fit in the time budget", info.name)
 
-    result = perception.run(video_path, deadline=start + max(allowed, 0.0))
-    segments = _find_events(result, params)  # camera alignment and light phases: see there
+    scene = _get_scene_map()
+    result = perception.run(
+        video_path,
+        deadline=start + max(allowed, 0.0),
+        rois=_light_windows(scene, info, params),
+    )
+    mapper = _align(result, scene, params) if scene is not None else None
+    phases = _read_lights(result, mapper, scene, params)
+    segments = _find_events(result, params, mapper, phases)
     events = finalize_events(segments, info.duration, params["postprocess"])
     if not result.complete:
         covered = result.n_analysed * result.stride / info.fps
@@ -160,6 +171,34 @@ def _align(result: PerceptionResult, scene: SceneMap, params: Mapping[str, Any])
         change["rotation_deg"],
     )
     return alignment
+
+
+def _light_windows(
+    scene: SceneMap | None, info: VideoInfo, params: Mapping[str, Any]
+) -> dict[str, Box]:
+    """Where perception cuts each traffic light out of the frames (src/scene/signals.py); none
+    without a scene map."""
+    if scene is None:
+        return {}
+    return light_windows(scene, params["signal"]["margin_px"], (info.width, info.height))
+
+
+def _read_lights(
+    result: PerceptionResult,
+    mapper: PointMapper | None,
+    scene: SceneMap | None,
+    params: Mapping[str, Any],
+) -> dict[str, PhaseTimeline]:
+    """The signal phase per arm, read from the lights perception cut out; none without a scene
+    map or light data. A failure here costs only the calls that need the lights (red_light, and
+    where stop_line ends), never the video's events, so it is logged and not raised."""
+    if scene is None or mapper is None or not result.lights:
+        return {}
+    try:
+        return dict(arm_phases(result, mapper, scene, params))
+    except Exception:  # see the docstring
+        log.exception("%s: reading the traffic lights failed; no light phases", result.info.name)
+        return {}
 
 
 def _get_scene_map() -> SceneMap | None:
