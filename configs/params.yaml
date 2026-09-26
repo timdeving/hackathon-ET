@@ -88,6 +88,29 @@ tracker:
     traffic_light: [9]
     animal: [15, 16, 17, 18, 19]
 
+alignment:
+  # Camera alignment (src/scene/alignment.py): each video's empty-road background is matched with
+  # the reference picture's, SIFT features plus a RANSAC homography. Starting values;
+  # tools/align_videos.py reports inliers and errors on the samples.
+  # Both pictures are resized to this width for matching: the width of configs/scene/reference.jpg.
+  match_width: 1920
+  # SIFT features kept per picture, strongest first.
+  features: 8000
+  # Lowe's ratio test: keep a match only if it beats the second-best by this factor (Lowe, 2004).
+  ratio: 0.75
+  # A match agrees with a homography if it lands within this many pixels, at match_width
+  # (4 px at 4K). RANSAC gives up after ransac_iterations samples.
+  ransac_px: 2.0
+  ransac_iterations: 5000
+  # Sanity check: with fewer agreeing matches than this, or a bigger change of view, the estimate
+  # isn't trusted and the video is treated as unshifted. The samples differ by up to 139 px (3.6%
+  # of the width), 1.1 degrees and 1.4% of zoom (PLAN.md, measured facts); the limits are
+  # RULES_DESIGN.md §1's, well above that.
+  min_inliers: 50
+  max_shift: 0.10  # largest corner shift, as a fraction of the frame width
+  max_rotation_deg: 5.0
+  max_zoom: 0.10  # largest change of scale, as a fraction
+
 postprocess:
   # Applied to every class unless overridden under per_class (same keys, per class id).
   default:
