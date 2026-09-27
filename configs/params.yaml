@@ -231,9 +231,18 @@ rules:
     # Red for at least this long when the front crosses the stop line: the first moment of red
     # is too close to amber to call (docs/SIGNAL_DESIGN.md §5).
     red_grace_sec: 1.0
-    # The event ends when the vehicle reaches an outgoing lane or leaves the picture, and at most
-    # this long after the crossing: a straight-on car leaves the view within a few seconds.
+    # The event ends when the vehicle reaches an outgoing lane or an exit zone, or leaves the
+    # picture, and at most this long after it moves on from past the line: a straight-on car
+    # leaves the view within a few seconds. (Counted from the crossing until 2026-09-27; C3902's
+    # labelled moped waits 17 s past the line first, and its event runs until it leaves.)
     max_sec: 8.0
+    # A vehicle first seen already past the stop line (along the kerb, or hidden while it
+    # crossed) counts from its first sighting if it's within this many of its box heights of the
+    # line (as stop_line's) and followed at least min_arrival_sec. Added 2026-09-27, GPU side: on
+    # the four samples this adds C3902's labelled moped (tIoU 0.81) and nothing else; 3 s drops
+    # a 0.2 s blip (C3896) and a 2 s track with no label (C3905).
+    max_line_heights: 2.0
+    min_arrival_sec: 3.0
   illegal_turn:
     # The turn starts where the heading leaves the lane's direction by more than start_deg, and
     # is complete once it stays within settle_deg of its direction when the new road is reached

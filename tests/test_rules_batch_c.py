@@ -9,7 +9,7 @@ from src.features.tracks import NoAlignment
 from src.rules import find_events
 from src.rules.common import AMBER, GREEN, RED, UNKNOWN
 from src.scene.scene_map import SceneMap
-from tests.synthetic_tracks import FPS, params_with, result_of, street_scene
+from tests.synthetic_tracks import CAR, FPS, params_with, result_of, street_scene, times, track
 from tests.test_rules_batch_b import drive_stop_drive, standing
 
 TOLERANCE = 0.25
@@ -61,6 +61,25 @@ def test_crossing_on_green_is_fine():
 def test_the_first_moment_of_red_is_not_called():
     phases = {"west": Phases([(0.0, GREEN), (1.75, RED)])}  # red only 0.5 s before crossing
     assert events("red_light", through_the_line(), phases=phases) == []
+
+
+def test_a_vehicle_first_seen_past_the_line_on_red_is_red_light_from_then():
+    """Like a moped that comes along the kerb: it's never seen crossing the line."""
+    t = times(2, 8)
+    moped = track(1, CAR, t, 615 + 100 * (t - 2), 400, width=80, height=50)
+    assert_one_event(events("red_light", moped, phases={"west": Phases([(0.0, RED)])}), 2.0, 8.05)
+
+
+def test_a_vehicle_seen_past_the_line_only_briefly_is_not_called():
+    t = times(2, 4)  # 2 s: a blip, or a car the tracker found for a moment
+    blip = track(1, CAR, t, 615 + 100 * (t - 2), 400, width=80, height=50)
+    assert events("red_light", blip, phases={"west": Phases([(0.0, RED)])}) == []
+
+
+def test_a_red_light_run_ends_when_the_vehicle_leaves_even_after_waiting_past_the_line():
+    car = drive_stop_drive(580, 400, stop_from=3, stop_to=13, seconds=16)  # waits 10 s past it
+    found = events("red_light", car, phases={"west": Phases([(0.0, RED)])}, seconds=16.0)
+    assert_one_event(found, 2.85, 16.05)  # leaves the picture at 16 s, not 8 s after crossing
 
 
 def test_without_read_lights_there_is_no_call():
