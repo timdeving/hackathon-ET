@@ -33,6 +33,8 @@ C3905: 71 events) and score with the organizers' `evaluate.py`:
 
 - **Speed:** Part A and Part B together take 0.65–0.71× each video's duration on an RTX A6000;
   the limit is 3×.
+- **Our output on the four samples,** as the harness writes it: `predictions_samples.json` (151
+  events, a risk value per frame). Running the two commands below on the samples reproduces it.
 - **Repeatability:** two full runs give identical output, events and risk curves alike.
 - **Part B:** the samples hold no accident, so it can't be scored on them. On ordinary traffic
   it raises one alarm (score ≥ 0.5) in 18 minutes: a car driving through pedestrians at a
@@ -187,7 +189,7 @@ B.json`).
 
 ```bash
 pip install pytest ruff
-pytest -q            # 221 tests, on synthetic data: no video needed
+pytest -q            # 234 tests, on synthetic data: no video needed
 ruff check .
 ```
 
@@ -261,7 +263,13 @@ examples/              the organizers' example files
 - **No other datasets** and no other footage of this camera. Our labels were made by hand on the
   organizers' sample videos (`data/`).
 - **Runtime libraries:** PyTorch and torchvision (BSD), OpenCV (Apache 2.0), PyAV (BSD; its wheel
-  bundles FFmpeg, LGPL), NumPy and SciPy (BSD), PyYAML (MIT).
+  bundles FFmpeg, LGPL), NumPy and SciPy (BSD), PyYAML (MIT). The demo adds Streamlit (Apache 2.0)
+  and Plotly (MIT); the website loads Plotly.js (MIT); keeping the demo awake uses Playwright
+  (Apache 2.0).
+
+## Team
+
+Members, roles and who did what: to be added.
 
 ## Limitations
 
