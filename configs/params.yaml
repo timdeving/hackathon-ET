@@ -36,6 +36,9 @@ detector:
   # which is NMS-free; tools/check_detector.py and tools/bench_detector.py compare it with other
   # sizes and with YOLO11 on the GPU PC.
   weights: yolo26m_736x1280_fp16.torchscript
+  # Where it runs: cuda, the judged run. The live demo's profile (configs/profiles/demo.yaml,
+  # WIUT_PROFILE=demo) sets cpu, where the FP16 weights run in float32.
+  device: cuda
   # Keep detections scoring at least this. Starting value: 0.1, ByteTrack's low-score threshold;
   # the tracker uses low-scoring boxes to keep hold of partly hidden objects.
   conf: 0.1

@@ -9,6 +9,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
+from src.perception import detector as detector_module  # noqa: E402  (needs PyTorch)
 from src.perception.detector import Detector  # noqa: E402  (only importable with PyTorch)
 
 INPUT_SIZE = (32, 64)  # (height, width) the stand-in model pretends to be exported with
@@ -61,3 +62,24 @@ def test_raw_output_goes_through_nms(tmp_path):
     assert detections.class_ids.tolist() == [2, 0]
     np.testing.assert_allclose(detections.boxes, [[6, 6, 14, 14], [35, 6, 45, 26]])
     np.testing.assert_allclose(detections.scores, [0.9, 0.7], rtol=1e-6)
+
+
+def test_a_half_precision_export_runs_on_the_cpu_in_float32(tmp_path):
+    """The GPU export is FP16; on the CPU (the live demo) the same weights run in float32."""
+    rows = torch.tensor([[4.0, 4.0, 12.0, 20.0, 0.9, 2.0]])
+    path = tmp_path / "half.torchscript"
+    metadata = {"config.txt": json.dumps({"imgsz": list(INPUT_SIZE)})}
+    torch.jit.script(FixedOutput(rows).half()).save(str(path), _extra_files=metadata)
+    detector = Detector(path, class_ids=[0, 2], conf=0.25, iou=0.7, max_det=300, device="cpu")
+    assert detector.dtype == torch.float32
+    np.testing.assert_allclose(detector(np.zeros((64, 128, 3), np.uint8)).boxes, [[8, 8, 24, 40]])
+
+
+def test_the_detector_runs_where_the_settings_say(tmp_path, monkeypatch):
+    rows = torch.tensor([[4.0, 4.0, 12.0, 20.0, 0.9, 2.0]])
+    metadata = {"config.txt": json.dumps({"imgsz": list(INPUT_SIZE)})}
+    torch.jit.script(FixedOutput(rows)).save(str(tmp_path / "m.torchscript"), _extra_files=metadata)
+    monkeypatch.setattr(detector_module, "WEIGHTS_DIR", tmp_path)
+    settings = {"weights": "m.torchscript", "classes": {0: "person", 2: "car"}, "conf": 0.25,
+                "iou": 0.7, "max_det": 300, "device": "cpu"}
+    assert detector_module.load_detector({"detector": settings}).device.type == "cpu"

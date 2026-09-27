@@ -1,6 +1,7 @@
 """Shared fixtures. Tests use a tiny synthetic clip and never touch the real sample videos."""
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -11,6 +12,10 @@ import numpy as np
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# The suite tests the judged settings: a WIUT_PROFILE left set in the shell (the live demo's,
+# src/config.py) would change them for every test, and for every harness run a test starts.
+os.environ.pop("WIUT_PROFILE", None)
 
 
 @dataclass(frozen=True)

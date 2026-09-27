@@ -21,8 +21,10 @@ from src.config import WEIGHTS_DIR
 from src.perception.boxes import PAD_VALUE, Detections, detections_from_rows, letterbox
 
 
-def load_detector(params: Mapping[str, Any], device: str = "cuda") -> Detector:
-    """The detector configured in params (the whole of configs/params.yaml)."""
+def load_detector(params: Mapping[str, Any], device: str | None = None) -> Detector:
+    """The detector configured in params (the whole of configs/params.yaml), on the device its
+    `detector.device` names (cuda in the judged run; the demo profile sets cpu), unless `device`
+    is given."""
     settings = params["detector"]
     return Detector(
         WEIGHTS_DIR / settings["weights"],
@@ -30,7 +32,7 @@ def load_detector(params: Mapping[str, Any], device: str = "cuda") -> Detector:
         settings["conf"],
         settings["iou"],
         settings["max_det"],
-        device=device,
+        device=device or settings["device"],
     )
 
 
@@ -54,7 +56,7 @@ class Detector:
         conf: minimum score for a detection to be kept.
         iou: overlap above which NMS drops the weaker box (raw-output models only).
         max_det: at most this many detections per image.
-        device: "cuda" or "cpu"; the file must have been exported for that device.
+        device: "cuda" or "cpu". A file exported in FP16 for the GPU runs on the CPU in float32.
     """
 
     def __init__(
@@ -72,6 +74,9 @@ class Detector:
         self.model = torch.jit.load(
             str(weights), map_location=self.device, _extra_files=extra_files
         ).eval()
+        if self.device.type == "cpu" and next(self.model.parameters()).dtype == torch.float16:
+            # CPUs run half precision slowly, if at all: the same weights, widened to float32.
+            self.model = self.model.float()
         metadata = json.loads(extra_files["config.txt"] or "{}")
         if "imgsz" not in metadata:
             raise ValueError(f"{weights} has no input size in its metadata; export it with "

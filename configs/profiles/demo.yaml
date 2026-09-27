@@ -1,0 +1,16 @@
+# The live demo on a CPU (a Hugging Face Space): run with the environment variable
+# WIUT_PROFILE=demo. Only the settings that differ from configs/params.yaml, merged over it
+# (src/config.py). The judged run never sets the variable, so it never reads this file.
+
+detector:
+  # No GPU on the Space. The FP16 weights run in float32 on the CPU: the same model, so results
+  # stay close to the GPU's, but about 1.2 s per analysed frame on 2 cores.
+  device: cpu
+
+budget:
+  # The harness's 3x limit applies only to the judged run. Here Part A may use
+  # (time_factor x (1 - margin_ratio) - part_b_extra_ratio) x the duration, minus decoding:
+  # about 850x, so it never cuts its analysis short; and Part B stops analysing only after
+  # part_b_extra_ratio x the duration of its own work.
+  time_factor: 1000.0
+  part_b_extra_ratio: 100.0

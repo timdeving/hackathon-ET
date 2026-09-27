@@ -64,6 +64,21 @@ docker run --rm --gpus all --network none \
 
 `--network none` proves that the run needs no internet.
 
+### On a CPU: the live demo
+
+The judged run uses the GPU. The same code runs on a CPU when the environment variable
+`WIUT_PROFILE=demo` is set. It merges `configs/profiles/demo.yaml` over `configs/params.yaml`,
+which moves the detector to the CPU (its FP16 weights then run in float32) and lifts the time
+limit:
+
+```bash
+WIUT_PROFILE=demo python run_submission.py --videos clips --out predictions.json --time-factor 1000
+```
+
+On a 20-second clip of a sample, the CPU run finds the same events and the same risk curve as the
+GPU run, but much more slowly: the detector takes about 1.2 s per analysed frame on 2 CPU cores.
+Without the variable, `params.yaml` alone applies, as in the judged run.
+
 ## How it works
 
 ```text
@@ -147,13 +162,16 @@ B.json`).
   came from: measured on the samples' tracks, or tuned on our labels.
 - **`configs/scene_map.json`, `configs/scene/`:** the scene map, its LabelMe source, the
   reference picture, and an overlay picture for checking it.
+- **`configs/profiles/`:** settings profiles, chosen with the environment variable
+  `WIUT_PROFILE`: `demo.yaml` for the live demo on a CPU. A profile names only the settings it
+  changes, and a name that isn't in `params.yaml` is refused.
 - **`weights/`:** the exported detector and how it was made (`weights/README.md`).
 
 ## Development
 
 ```bash
 pip install pytest ruff
-pytest -q            # 212 tests, on synthetic data: no video needed
+pytest -q            # 221 tests, on synthetic data: no video needed
 ruff check .
 ```
 
@@ -231,4 +249,5 @@ examples/              the organizers' example files
   may differ from ours in places.
 - **Part B is untested on accidents:** the samples contain none. Its thresholds were set so that
   ordinary traffic rarely raises an alarm.
-- **GPU required.** The detector file is exported for CUDA in FP16.
+- **Speed on a CPU.** The judged run needs the GPU to stay within the time limit. The demo
+  profile runs the same model on a CPU, at about 1.2 s per analysed frame on 2 cores.
