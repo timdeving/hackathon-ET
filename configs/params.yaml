@@ -11,9 +11,11 @@ budget:
   # Multiply that estimate by this, in case the start of a video decodes faster than the rest.
   # Starting value: check it against the part_b_sec the harness logs on the GPU PC.
   part_b_safety: 1.2
-  # Part B's own work on top of decoding, as a multiple of the duration: 0 while step() is the
-  # stub; set it when the risk pipeline arrives.
-  part_b_extra_ratio: 0.0
+  # Part B's own work on top of decoding, as a multiple of the duration: Part A leaves this much
+  # time for it, and Part B stops analysing once its work reaches it (src/risk/estimator.py).
+  # 2026-09-27: step() cost 0.17x the duration on the RTX A6000 (C3905); a T4's detector is about
+  # 3x slower, so about 0.3x there; 0.4 keeps a margin.
+  part_b_extra_ratio: 0.4
   # Fraction of the budget left unused, for the harness's own overhead. Starting value.
   margin_ratio: 0.05
 
@@ -293,6 +295,46 @@ stitching:
   edge_margin: 0.02
   # An end's velocity: the least-squares slope of the positions over its last (or first) second.
   velocity_sec: 1.0
+
+risk:
+  # Part B (src/risk/estimator.py, src/risk/conflicts.py): a causal time-to-collision risk, added
+  # 2026-09-27. Our samples hold no accident, so nothing here is tuned on one: the values are set
+  # for few alarms in ordinary traffic, checked on the four samples.
+  # Analyse every Nth frame (about 10 updates per second, as Part A); the frames in between
+  # return the last score at no cost.
+  stride: 3
+  # A track's velocity: the least-squares slope of its ground point over the last velocity_sec,
+  # from at least min_points updates; history_len updates are kept per track.
+  velocity_sec: 0.6
+  min_points: 4
+  history_len: 12
+  # A pair is on a collision course when, both keeping their velocity, they'd come within
+  # contact_heights (box heights) within horizon_sec, closing at min_closing box heights/s or more
+  # while the pair's vehicle moves at min_vehicle_speed or more. Its score is 0.5, an alarm, at
+  # ttc_alarm_sec before closest approach, rising towards 1 as it nears (ttc_softness_sec sets how
+  # steeply); ordinary traffic scores `base`. Set on the four samples' ordinary traffic (Part B's
+  # tracks cached, alarms counted offline, 2026-09-27): the first values (contact 0.5, closing
+  # 0.5, no speed floor, alarm at 1.5 s) raised 21 alarms in C3905 alone, from queues shuffling
+  # and pedestrians passing standing cars; these, with edge_margin and far_share below, raise one
+  # in the 18 minutes of the four samples: a car driving through pedestrians at the crossing by
+  # the median tip (C3897, 247.2 s), a real close call. A crash approach at urban speed closes at
+  # 2 box heights/s or more on a tight course.
+  contact_heights: 0.3
+  horizon_sec: 3.0
+  min_closing: 2.0
+  min_vehicle_speed: 1.0
+  ttc_alarm_sec: 1.0
+  ttc_softness_sec: 0.35
+  # Boxes within edge_margin (a share of the frame's longer side) of its edge are cut off, their
+  # ground point wrong; ground points in the top far_share of the picture are on the far road,
+  # where perspective squeezes distances. Neither takes part (they caused every alarm left on
+  # the samples with the values above).
+  edge_margin: 0.02
+  far_share: 0.3
+  base: 0.02
+  # Each update: score = smoothing x raw + (1 - smoothing) x the previous score (past values
+  # only). One noisy update can't reach 0.5 on its own; two in a row can.
+  smoothing: 0.4
 
 signal:
   # Reading the traffic lights (src/scene/signals.py; docs/SIGNAL_DESIGN.md). Values measured on
