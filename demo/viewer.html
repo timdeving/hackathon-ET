@@ -1,0 +1,162 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<script src="__PLOTLY__"></script>
+<style>
+  :root { --ink:#16181d; --muted:#5d6470; --line:#e3e6eb; --alt:#f5f7fa; --accent:#d6452d; --soft:#fdece8; --ok:#2f9e62; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 "Source Sans Pro", system-ui, sans-serif; color: var(--ink); background: #fff; }
+  .viewer { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(240px, 1fr); gap: 14px; align-items: start; }
+  video { width: 100%; aspect-ratio: 16 / 9; background: #0b0d10; border-radius: 12px; display: block; }
+  .now { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 8px; padding: 8px 12px;
+         border: 1px solid var(--line); border-radius: 12px; }
+  .time { font: 600 14px ui-monospace, Menlo, Consolas, monospace; min-width: 64px; }
+  .under { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 120px; }
+  .none { color: var(--muted); font-size: 14px; }
+  .chip { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; }
+  .light { width: 16px; height: 16px; border-radius: 50%; background: #c4c9d1; box-shadow: inset 0 0 0 2px rgba(0,0,0,.15); }
+  .risk { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .gauge { width: 100px; height: 9px; background: var(--alt); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .gauge div { height: 100%; width: 0; background: var(--ok); transition: width .2s; }
+  .gauge div.alarm { background: var(--accent); }
+  .risk b { color: var(--ink); font-family: ui-monospace, Menlo, Consolas, monospace; }
+  aside { border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; max-height: 470px; }
+  aside .head { padding: 8px 12px; border-bottom: 1px solid var(--line); font-weight: 700; }
+  aside .head span { color: var(--muted); font-weight: 400; font-size: 13px; }
+  ol { list-style: none; margin: 0; padding: 4px; overflow-y: auto; }
+  li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+  li:hover { background: var(--alt); }
+  li.active { background: var(--soft); }
+  li .when { font: 12px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  @media (max-width: 760px) { .viewer { grid-template-columns: 1fr; } aside { max-height: 300px; } }
+</style></head>
+<body>
+<div class="viewer">
+  <div>
+    <video id="player" controls playsinline preload="auto"></video>
+    <div class="now">
+      <span class="time" id="time">0.0 s</span>
+      <span class="under" id="under"></span>
+      <span class="light" id="light" title="The top road's light, as the system reads it"></span>
+      <span class="risk">accident risk <span class="gauge"><div id="gauge"></div></span><b id="risk">0.00</b></span>
+    </div>
+  </div>
+  <aside><div class="head" id="count"></div><ol id="events"></ol></aside>
+</div>
+<div id="timeline"></div>
+<div id="riskchart"></div>
+<p class="hint">Click an event, a bar or a point on the curve to jump the video there.</p>
+<script>
+"use strict";
+const DATA = __DATA__;
+const LIGHT = { red: "#dc3545", amber: "#f5a300", green: "#2f9e62", unknown: "#c4c9d1" };
+const PLOT = { responsive: true, displayModeBar: false };
+const MARGIN = { l: 140, r: 12, t: 32, b: 36 };
+const $ = (id) => document.getElementById(id);
+const colour = (label) => DATA.colours[label] || DATA.other;
+const chip = (label) => `<span class="chip" style="background:${colour(label)}">${label}</span>`;
+const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+const playhead = (t) => ({ type: "line", x0: t, x1: t, y0: 0, y1: 1, yref: "paper", line: { color: "#16181d", width: 1.5 } });
+const video = $("player");
+
+if (DATA.video.url) {
+  video.src = DATA.video.url;
+} else {  // a processed upload: its bytes, as a blob the player can seek in
+  const bytes = Uint8Array.from(atob(DATA.video.base64), (c) => c.charCodeAt(0));
+  video.src = URL.createObjectURL(new Blob([bytes], { type: "video/mp4" }));
+}
+
+function valueAt(curve, t) {
+  if (!curve.length || t < curve[0][0]) return 0;
+  let lo = 0, hi = curve.length - 1;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (curve[mid][0] <= t) lo = mid; else hi = mid - 1; }
+  return curve[lo][1];
+}
+
+function seek(t) { video.currentTime = Math.max(0, t); video.play().catch(() => {}); }
+
+function timeline() {
+  const classes = [...new Set(DATA.events.map((e) => e[2]))].sort();
+  const traces = classes.map((label) => {
+    const events = DATA.events.filter((e) => e[2] === label);
+    return { type: "bar", orientation: "h", width: 0.6, y: events.map(() => label),
+      x: events.map((e) => Math.max(e[1] - e[0], 0.3)), base: events.map((e) => e[0]),
+      customdata: events.map((e) => [e[0], e[1]]), marker: { color: colour(label) },
+      hovertemplate: `${label} %{customdata[0]:.1f}-%{customdata[1]:.1f} s<extra></extra>` };
+  });
+  Plotly.newPlot("timeline", traces, {
+    barmode: "overlay", showlegend: false, height: 90 + 42 * Math.max(classes.length, 1), margin: MARGIN,
+    title: { text: "Events", x: 0, font: { size: 14 } }, plot_bgcolor: "#fff", paper_bgcolor: "#fff",
+    xaxis: { range: [0, DATA.duration], title: { text: "seconds", font: { size: 12 } }, zeroline: false },
+    yaxis: { categoryorder: "array", categoryarray: classes.slice().reverse(), automargin: true },
+    shapes: [playhead(0)] }, PLOT);
+  $("timeline").on("plotly_click", (e) => seek(e.points[0].customdata[0] - 1));
+}
+
+function riskchart() {
+  const bands = [];
+  let start = null, last = null;
+  for (const [t, s] of DATA.risk) {
+    if (s >= DATA.alarm) { if (start === null) start = t; last = t; }
+    else if (start !== null) { bands.push([start, last]); start = null; }
+  }
+  if (start !== null) bands.push([start, last]);
+  const shapes = [playhead(0),
+    { type: "line", x0: 0, x1: 1, xref: "paper", y0: DATA.alarm, y1: DATA.alarm, line: { color: "#8a919c", dash: "dash", width: 1 } },
+    ...bands.map(([a, b]) => ({ type: "rect", x0: a - 0.5, x1: b + 0.5, y0: 0, y1: 1, yref: "paper", fillcolor: "rgba(214,69,45,0.16)", line: { width: 0 } }))];
+  Plotly.newPlot("riskchart", [{ type: "scatter", mode: "lines", x: DATA.risk.map((r) => r[0]), y: DATA.risk.map((r) => r[1]),
+    fill: "tozeroy", fillcolor: "rgba(214,69,45,0.12)", line: { color: "#d6452d", width: 1.5 },
+    hovertemplate: "%{x:.1f} s: risk %{y:.2f}<extra></extra>" }], {
+    height: 210, margin: MARGIN, showlegend: false, plot_bgcolor: "#fff", paper_bgcolor: "#fff",
+    title: { text: "Accident risk: the chance an accident starts within 5 s (dashed: alarm)", x: 0, font: { size: 14 } },
+    xaxis: { range: [0, DATA.duration], title: { text: "seconds", font: { size: 12 } } },
+    yaxis: { range: [0, 1], tickvals: [0, 0.5, 1] }, shapes }, PLOT);
+  $("riskchart").on("plotly_click", (e) => seek(e.points[0].x - 1));
+}
+
+function list() {
+  $("count").innerHTML = `${DATA.events.length} events <span>· click one to watch it</span>`;
+  const target = $("events");
+  for (const [start, end, label] of [...DATA.events].sort((a, b) => a[0] - b[0])) {
+    const item = document.createElement("li");
+    item.dataset.start = start; item.dataset.end = end;
+    item.innerHTML = `${chip(label)}<span class="when">${mmss(start)}-${mmss(end)}</span>`;
+    item.addEventListener("click", () => seek(start - 1));
+    target.appendChild(item);
+  }
+  if (!DATA.events.length) target.innerHTML = '<li class="none">No events found in this clip.</li>';
+}
+
+function now(t) {
+  $("time").textContent = `${t.toFixed(1)} s`;
+  const under = DATA.events.filter((e) => e[0] <= t && t < e[1]);
+  $("under").innerHTML = under.length ? under.map((e) => chip(e[2])).join("") : '<span class="none">no event under way</span>';
+  const risk = valueAt(DATA.risk, t);
+  $("risk").textContent = risk.toFixed(2);
+  $("gauge").style.width = `${Math.min(100, risk * 100)}%`;
+  $("gauge").classList.toggle("alarm", risk >= DATA.alarm);
+  const phase = DATA.lights.find((l) => l[0] <= t && t < l[1]);
+  $("light").style.background = LIGHT[phase ? phase[2] : "unknown"];
+  for (const item of document.querySelectorAll("#events li")) {
+    item.classList.toggle("active", Number(item.dataset.start) <= t && t < Number(item.dataset.end));
+  }
+}
+
+let pending = false;
+video.addEventListener("timeupdate", () => {
+  if (pending) return;
+  pending = true;
+  requestAnimationFrame(() => {
+    pending = false;
+    const t = video.currentTime;
+    now(t);
+    for (const id of ["timeline", "riskchart"]) Plotly.relayout(id, { "shapes[0].x0": t, "shapes[0].x1": t });
+  });
+});
+
+list();
+timeline();
+riskchart();
+now(0);
+</script>
+</body></html>

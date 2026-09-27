@@ -1,0 +1,13 @@
+# The live demo's settings on Streamlit Community Cloud, which reads this file from the
+# repository's root (demo/streamlit_app.py). The submission doesn't use it.
+[theme]
+primaryColor = "#d6452d"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f5f7fa"
+textColor = "#16181d"
+
+[server]
+maxUploadSize = 500
+
+[browser]
+gatherUsageStats = false

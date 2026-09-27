@@ -51,7 +51,7 @@ def main() -> int:
             shutil.move(result.predictions, out / "predictions.json")
             meta = {"title": title, "video": video, "start_sec": start,
                     "duration": round(result.info.duration, 2), "events": len(result.events),
-                    "seconds": round(result.seconds, 1)}
+                    "seconds": round(result.seconds, 1), "lights": result.lights}
             (out / "meta.json").write_text(json.dumps(meta, indent=1))
             print(f"{folder}: {len(result.events)} events, {result.seconds:.0f} s")
     return 0

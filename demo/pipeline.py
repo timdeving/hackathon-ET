@@ -23,10 +23,12 @@ from src import part_a
 from src.config import load_params
 from src.perception.boxes import Detections
 from src.risk import estimator
+from src.rules.common import AMBER, GREEN, RED
 from src.video.probe import VideoInfo, probe_video
 from src.visualize import H264Writer, by_frame, draw_frame, events_under_way
 
 MAX_SECONDS = 120.0  # the demo accepts clips up to 2 minutes
+PHASE_NAMES = {RED: "red", AMBER: "amber", GREEN: "green"}
 JPEG_QUALITY = 90  # the analysed frames, kept on disk until they are drawn on
 
 Progress = Callable[[float, str], None]  # (fraction done, what is happening)
@@ -40,6 +42,7 @@ class DemoResult:
     video: Path  # the annotated clip, H.264
     predictions: Path  # events and risk in the harness's predictions.json format
     seconds: float  # processing time
+    lights: list[list]  # the top road's phases as read: [[start, end, "red" | ...], ...]
 
 
 class ReplayDetector:
@@ -111,7 +114,16 @@ def process(video_path: str | Path, workdir: str | Path, progress: Progress | No
         {"team": "wiut-demo", "videos": {info.name: {"events": analysis.events, "risk": risk}}}
     ))
     return DemoResult(info, analysis.events, risk, video, predictions,
-                      time.perf_counter() - start)
+                      time.perf_counter() - start, light_spans(analysis, info.fps))
+
+
+def light_spans(analysis: part_a.Analysis, fps: float) -> list[list]:
+    """The phases of the arm whose lights were read (the scene map has one), as time spans."""
+    phases = next(iter(analysis.phases.values()), None)
+    if phases is None:
+        return []
+    return [[round(start, 2), round(end, 2), PHASE_NAMES.get(code, "unknown")]
+            for start, end, code in phases.spans(fps)]
 
 
 def risk_curve(analysis: part_a.Analysis, info: VideoInfo, params: dict) -> list[list]:
