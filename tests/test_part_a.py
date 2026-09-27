@@ -1,13 +1,16 @@
-"""Part A's rules step: what runs, when the scene map is missing, and when a rule fails."""
+"""Part A: what runs, when the scene map is missing, when a rule fails; and analyse(), which
+keeps what the events were found from."""
 from __future__ import annotations
 
 import json
 import logging
 
+import numpy as np
 import pytest
 
 import src.rules
 from src import part_a
+from src.video.reader import SampledFrame
 from tests.synthetic_tracks import CAR, PERSON, params_with, result_of, street_scene, times, track
 
 
@@ -65,3 +68,31 @@ def test_a_failing_rule_costs_only_its_own_class(street_map, monkeypatch, caplog
         segments = part_a._find_events(jaywalker_and_wrong_way_car(), params)
     assert labels_found(segments) == ["jaywalking"]
     assert "the wrong_way rule failed" in caplog.text
+
+
+class FakePerception:
+    """Stands in for perception: returns the same result every time, after reporting two
+    analysed frames."""
+
+    def __init__(self, result) -> None:
+        self.result = result
+
+    def run(self, video_path, deadline=None, rois=None, on_frame=None):
+        for index in (0, 3):
+            if on_frame is not None:
+                on_frame(SampledFrame(index, index / 25.0, np.zeros((4, 4, 3), np.uint8)))
+        return self.result
+
+
+def test_analyse_returns_detect_events_events_and_what_they_came_from(
+    street_map, tiny_video, monkeypatch
+):
+    result = jaywalker_and_wrong_way_car()
+    monkeypatch.setattr(part_a, "_perception", FakePerception(result))
+    params = params_with(rules={"enabled": ["jaywalking", "wrong_way"]})
+    monkeypatch.setattr(part_a, "load_params", lambda: params)
+    seen = []
+    analysis = part_a.analyse(str(tiny_video.path), on_frame=lambda f: seen.append(f.index))
+    assert seen == [0, 3]  # every analysed frame, in order
+    assert analysis.result is result
+    assert analysis.events == part_a.detect_events(str(tiny_video.path))

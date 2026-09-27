@@ -12,7 +12,8 @@ from __future__ import annotations
 import logging
 import random
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import cv2
@@ -27,11 +28,11 @@ from src.perception.stitching import stitch_tracks
 from src.postprocess.segments import finalize_events
 from src.rules import find_events
 from src.rules.common import PhaseTimeline
-from src.scene.alignment import estimate_alignment, view_change
+from src.scene.alignment import camera_motion, estimate_alignment, view_change
 from src.scene.scene_map import SceneMap
 from src.scene.signals import arm_phases, light_windows
 from src.video.probe import VideoInfo, probe_video
-from src.video.reader import Box
+from src.video.reader import Box, SampledFrame
 
 log = logging.getLogger(__name__)
 
@@ -63,11 +64,32 @@ def load_models() -> None:
         log.exception("could not load the perception models")
 
 
+@dataclass
+class Analysis:
+    """Part A's events for one video, with what they were found from (the live demo draws it)."""
+
+    events: list[list]  # [[start_sec, end_sec, label], ...], as detect_events() returns them
+    result: PerceptionResult  # detections, tracks and light readings, in the video's own pixels
+    mapper: PointMapper | None  # the video's pixels -> the scene map's reference picture
+    phases: dict[str, PhaseTimeline]  # the signal phase of each arm whose lights were read
+
+
 def detect_events(video_path: str) -> list[list]:
     """Return [[start_sec, end_sec, label], ...] for one video.
 
     Times are seconds from the first frame, 0 <= start < end <= duration; labels come from
     CLASSES and same-class segments never overlap.
+    """
+    return analyse(video_path).events
+
+
+def analyse(
+    video_path: str, on_frame: Callable[[SampledFrame], None] | None = None
+) -> Analysis:
+    """detect_events(), keeping what the events were found from.
+
+    on_frame: called with every analysed frame once perception has processed it; the live demo
+    uses it to show progress and to keep the frames it draws on.
     """
     start = time.perf_counter()
     perception = _get_perception()
@@ -93,6 +115,7 @@ def detect_events(video_path: str) -> list[list]:
         video_path,
         deadline=start + max(allowed, 0.0),
         rois=_light_windows(scene, info, params),
+        on_frame=on_frame,
     )
     mapper = _align(result, scene, params) if scene is not None else None
     phases = _read_lights(result, mapper, scene, params)
@@ -119,7 +142,7 @@ def detect_events(video_path: str) -> list[list]:
         elapsed,
         elapsed / info.duration,
     )
-    return events
+    return Analysis(events, result, mapper, phases)
 
 
 def _find_events(
@@ -159,7 +182,8 @@ def _align(result: PerceptionResult, scene: SceneMap, params: Mapping[str, Any])
     alignment = estimate_alignment(
         result.background, reference, params["alignment"], size, (scene.width, scene.height)
     )
-    change = view_change(alignment.homography, size)
+    motion = camera_motion(alignment.homography, size, (scene.width, scene.height))
+    change = view_change(motion, size)
     log.info(
         "%s: camera alignment %s: %d matches, error %.1f px; view moved up to %.0f px, "
         "rotated %.2f degrees",

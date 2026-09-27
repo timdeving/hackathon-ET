@@ -138,3 +138,23 @@ def test_the_identity_leaves_points_where_they_are():
     assert not identity.ok
     np.testing.assert_array_equal(identity.to_reference(grid()), grid())
     assert identity.to_reference(np.zeros((0, 2))).shape == (0, 2)
+
+
+def test_a_smaller_video_is_aligned_across_the_difference_in_size():
+    """A 1080p copy of the camera's 4K video: halving the size is not a camera shift."""
+    reference = scene()
+    truth = view_moved(dx=30.0, dy=10.0, degrees=0.5, zoom=1.0)  # in full-size pixels
+    small = (FULL[0] // 2, FULL[1] // 2)
+    video = cv2.resize(as_seen_by(reference, truth), small, interpolation=cv2.INTER_AREA)
+    alignment = estimate_alignment(video, reference, PARAMS, small, FULL)
+    assert alignment.ok
+    points = grid() / 2  # in the small video's pixels
+    expected = apply_homography(truth @ np.diag([2.0, 2.0, 1.0]), points)
+    assert np.linalg.norm(alignment.to_reference(points) - expected, axis=1).max() < 3.0
+
+
+def test_a_smaller_video_without_an_estimate_is_only_rescaled():
+    blank = np.full((FULL[1] // 2, FULL[0] // 2, 3), BACKGROUND_GREY, np.uint8)
+    alignment = estimate_alignment(blank, scene(), PARAMS, (FULL[0] // 2, FULL[1] // 2), FULL)
+    assert not alignment.ok
+    np.testing.assert_allclose(alignment.to_reference(grid() / 2), grid())

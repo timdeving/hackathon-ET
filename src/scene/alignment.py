@@ -51,6 +51,34 @@ class Alignment:
         """No shift, marked not ok: what a video gets when there is no trustworthy estimate."""
         return cls(np.eye(3), ok=False, inliers=inliers, error_px=error_px)
 
+    @classmethod
+    def unshifted(
+        cls,
+        video_size: tuple[int, int],
+        reference_size: tuple[int, int],
+        inliers: int = 0,
+        error_px: float = 0.0,
+    ) -> Alignment:
+        """No shift, marked not ok, for a video of any size: only rescaled to the reference's
+        (the identity when the sizes match)."""
+        return cls(rescale(video_size, reference_size), ok=False, inliers=inliers,
+                   error_px=error_px)
+
+
+def rescale(video_size: tuple[int, int], reference_size: tuple[int, int]) -> np.ndarray:
+    """The homography that only rescales a video's frame, (width, height), to the reference's:
+    where its pixels land if the camera hasn't moved. A 1080p copy of the camera's 4K video
+    needs this factor of 2 before any shift."""
+    return np.diag([reference_size[0] / video_size[0], reference_size[1] / video_size[1], 1.0])
+
+
+def camera_motion(
+    homography: np.ndarray, video_size: tuple[int, int], reference_size: tuple[int, int]
+) -> np.ndarray:
+    """The part of a video -> reference homography that is the camera's movement, in the
+    video's own pixels: the homography without the rescaling between the two sizes."""
+    return np.linalg.inv(rescale(video_size, reference_size)) @ homography
+
 
 def estimate_alignment(
     background: np.ndarray,
@@ -74,7 +102,7 @@ def estimate_alignment(
     reference_points, reference_descriptors = sift.detectAndCompute(small_reference, None)
     if descriptors is None or reference_descriptors is None:
         log.warning("camera alignment: no features found; treating the view as unshifted")
-        return Alignment.identity()
+        return Alignment.unshifted(background_size, reference_size)
 
     # Lowe's ratio test: keep a match only if it is clearly better than the runner-up, which
     # drops most matches between look-alike patterns such as zebra stripes.
@@ -85,7 +113,7 @@ def estimate_alignment(
     if len(matches) < params["min_inliers"]:
         log.warning("camera alignment: only %d feature matches; treating the view as unshifted",
                     len(matches))
-        return Alignment.identity()
+        return Alignment.unshifted(background_size, reference_size)
 
     source = np.array([points[m.queryIdx].pt for m in matches], dtype=np.float64)
     target = np.array([reference_points[m.trainIdx].pt for m in matches], dtype=np.float64)
@@ -101,7 +129,7 @@ def estimate_alignment(
     if small_homography is None:
         log.warning("camera alignment: no homography fits the matches; treating the view as "
                     "unshifted")
-        return Alignment.identity()
+        return Alignment.unshifted(background_size, reference_size)
 
     # From matching-size pixels back to full-resolution pixels on both sides.
     homography = (
@@ -118,10 +146,11 @@ def estimate_alignment(
     )
     n_inliers, error_px = int(inlier.sum()), float(np.median(errors))
 
-    problem = _implausible(homography, background_size, n_inliers, params)
+    motion = camera_motion(homography, background_size, reference_size)
+    problem = _implausible(motion, background_size, n_inliers, params)
     if problem:
         log.warning("camera alignment: %s; treating the view as unshifted", problem)
-        return Alignment.identity(n_inliers, error_px)
+        return Alignment.unshifted(background_size, reference_size, n_inliers, error_px)
     return Alignment(homography, ok=True, inliers=n_inliers, error_px=error_px)
 
 
