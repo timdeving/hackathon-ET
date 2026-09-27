@@ -328,15 +328,15 @@ function edaCharts(facts) {
 
 // ---------------------------------------------------------------- team, links, demo
 function teamCards(team) {
+  $("#team-note").textContent = team.note;
   const target = $("#team-cards");
   for (const person of team.members) {
     const links = [["GitHub", person.github], ["LinkedIn", person.linkedin], ["Portfolio", person.portfolio]]
       .filter(([, url]) => url).map(([name, url]) => `<a href="${url}" target="_blank" rel="noopener">${name}</a>`).join("");
     const card = document.createElement("article");
     card.className = "person";
-    card.innerHTML = `<h4>${person.name}</h4><div class="role">${person.role}</div>
-      <ul>${person.did.map((d) => `<li>${d}</li>`).join("")}</ul>
-      ${person.projects.length ? `<small><b>Projects:</b> ${person.projects.join(", ")}</small>` : ""}
+    card.innerHTML = `<h4>${person.name}</h4><div class="role">Previous projects</div>
+      <ul>${person.projects.map((p) => `<li>${p}</li>`).join("")}</ul>
       <div class="person-links">${links}</div>`;
     target.appendChild(card);
   }

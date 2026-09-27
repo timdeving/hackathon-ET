@@ -1,11 +1,38 @@
 {
-  "note": "Fill in: one entry per member. Links may be left empty.",
-  "members": [
-    {"name": "Member one", "role": "Role", "did": ["What they did", "Another thing"],
-     "github": "", "linkedin": "", "portfolio": "", "projects": ["A previous project"]},
-    {"name": "Member two", "role": "Role", "did": ["What they did"],
-     "github": "", "linkedin": "", "portfolio": "", "projects": []},
-    {"name": "Member three", "role": "Role", "did": ["What they did"],
-     "github": "", "linkedin": "", "portfolio": "", "projects": []}
-  ]
+ "team": "В проде пофиксим",
+ "note": "All three of us worked on the project together and contributed equally.",
+ "members": [
+  {
+   "name": "Akmal",
+   "projects": [
+    "Real-time sign-language translation",
+    "Real-time speech translation",
+    "RAG systems",
+    "OpenCV projects"
+   ],
+   "github": "https://github.com/aki4455",
+   "linkedin": "",
+   "portfolio": ""
+  },
+  {
+   "name": "Timur",
+   "projects": [
+    "The backend of HumoDoc, a large platform",
+    "Advanced RAG systems"
+   ],
+   "github": "https://github.com/timdeving",
+   "linkedin": "",
+   "portfolio": ""
+  },
+  {
+   "name": "Firdavs",
+   "projects": [
+    "A skin-lesion detection model: 12 lesion types, highlighting the affected area; pretraining and ensembling, built in 2 days",
+    "Classic machine-learning algorithms from scratch (gradient descent, decision trees, Gaussian naive Bayes), as accurate as scikit-learn's"
+   ],
+   "github": "https://github.com/FirdavsJurakulov",
+   "linkedin": "https://www.linkedin.com/in/firdavs-jurakulov/",
+   "portfolio": ""
+  }
+ ]
 }

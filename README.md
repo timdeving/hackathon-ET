@@ -267,9 +267,15 @@ examples/              the organizers' example files
   and Plotly (MIT); the website loads Plotly.js (MIT); keeping the demo awake uses Playwright
   (Apache 2.0).
 
-## Team
+## Team: В проде пофиксим
 
-Members, roles and who did what: to be added.
+All three of us worked on the project together and contributed equally.
+
+| Member | Previous projects | Links |
+| --- | --- | --- |
+| **Akmal** | Real-time sign-language translation; real-time speech translation; RAG systems; OpenCV projects | [GitHub](https://github.com/aki4455) |
+| **Timur** | The backend of HumoDoc, a large platform; advanced RAG systems | [GitHub](https://github.com/timdeving) |
+| **Firdavs** | A skin-lesion detection model (12 lesion types, highlighting the affected area; pretraining and ensembling, built in 2 days); classic machine-learning algorithms from scratch (gradient descent, decision trees, Gaussian naive Bayes), as accurate as scikit-learn's | [GitHub](https://github.com/FirdavsJurakulov) · [LinkedIn](https://www.linkedin.com/in/firdavs-jurakulov/) |
 
 ## Limitations
 
