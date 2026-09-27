@@ -33,7 +33,8 @@ def labels_found(segments) -> list[str]:
 
 
 def test_no_class_enabled_means_no_rules_run(street_map):
-    assert part_a._find_events(jaywalker_and_wrong_way_car(), params_with()) == []
+    no_class = params_with(rules={"enabled": []})
+    assert part_a._find_events(jaywalker_and_wrong_way_car(), no_class) == []
     assert part_a._scene_map is None  # not even loaded
 
 

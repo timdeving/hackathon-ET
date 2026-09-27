@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from src.features.tracks import NoAlignment
-from src.rules import find_events
+from src.rules import RULES, find_events
 from src.scene.scene_map import SceneMap
 from tests.synthetic_tracks import (
     CAR,
@@ -160,6 +160,9 @@ def test_only_the_requested_rules_run_and_unknown_ones_are_refused():
         find_events(result_of(walker), NoAlignment(), SCENE, PARAMS, ["fire_smoke"])
 
 
-def test_nothing_is_predicted_until_the_team_enables_classes():
-    assert PARAMS["rules"]["enabled"] == []
-    assert find_events(result_of(walker_across(900)), NoAlignment(), SCENE, PARAMS) == []
+def test_only_the_classes_the_team_enabled_are_predicted():
+    assert set(PARAMS["rules"]["enabled"]) <= set(RULES)  # each has a rule
+    no_class = params_with(rules={"enabled": []})
+    assert find_events(result_of(walker_across(900)), NoAlignment(), SCENE, no_class) == []
+    enabled = find_events(result_of(walker_across(900)), NoAlignment(), SCENE, PARAMS)
+    assert {s.label for s in enabled} <= set(PARAMS["rules"]["enabled"])
