@@ -117,6 +117,20 @@ def test_without_anyone_waiting_there_is_no_call():
     assert events("stop_line", car) == []
 
 
+def test_stopping_far_beyond_the_junction_is_not_stop_line():
+    # From lane west_in_1 through the junction to x = 900, 6 box heights past the stop line.
+    car = drive_stop_drive(900, 400, stop_from=5, stop_to=12, seconds=15, track_id=1)
+    waiting = standing(500, 470, seconds=15, track_id=2)
+    assert events("stop_line", car, waiting) == []
+
+
+def test_a_vehicle_seen_in_no_lane_is_judged_by_the_nearest_one():
+    """Like a moped that comes along the kerb and stops on the zebra: never in a drawn lane."""
+    moped = track(1, CAR, times(0, 10), 610, 400, width=40, height=50)
+    waiting = standing(500, 470, seconds=10, track_id=2)
+    assert_one_event(events("stop_line", moped, waiting), 0.0, 10.0)
+
+
 # illegal_u_turn ------------------------------------------------------------------------------
 
 def u_turn(seconds: float = 8.0) -> np.ndarray:

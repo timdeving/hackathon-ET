@@ -7,7 +7,7 @@ import pytest
 
 from src.features.tracks import NoAlignment
 from src.rules import find_events
-from src.rules.common import GREEN, RED, UNKNOWN
+from src.rules.common import AMBER, GREEN, RED, UNKNOWN
 from src.scene.scene_map import SceneMap
 from tests.synthetic_tracks import FPS, params_with, result_of, street_scene
 from tests.test_rules_batch_b import drive_stop_drive, standing
@@ -74,6 +74,24 @@ def test_with_lights_a_stop_past_the_line_ends_when_the_light_turns_green():
     car = drive_stop_drive(580, 400, stop_from=3, stop_to=8, seconds=10)  # front at 620
     phases = {"west": Phases([(0.0, RED), (6.0, GREEN)])}
     assert_one_event(events("stop_line", car, phases=phases), 3.0, 6.0)  # nobody else waiting
+
+
+def test_with_lights_driving_off_on_red_is_not_stop_line():
+    car = drive_stop_drive(580, 400, stop_from=3, stop_to=6, seconds=10)  # stops, then runs it
+    assert events("stop_line", car, phases={"west": Phases([(0.0, RED)])}) == []
+
+
+def test_with_lights_moving_off_on_red_and_amber_still_ends_at_the_green():
+    car = drive_stop_drive(580, 400, stop_from=3, stop_to=6, seconds=10)
+    phases = {"west": Phases([(0.0, RED), (5.0, AMBER), (7.0, GREEN)])}  # red and amber from 5 s
+    assert_one_event(events("stop_line", car, phases=phases), 3.0, 7.0)
+
+
+def test_with_lights_read_around_it_a_stop_while_they_are_unknown_is_not_guessed():
+    car = drive_stop_drive(580, 400, stop_from=3, stop_to=7, seconds=10)
+    waiting = standing(500, 470, seconds=10, track_id=2)  # would imply red without the lights
+    phases = {"west": Phases([(0.0, RED), (3.0, UNKNOWN), (7.0, RED)])}  # a bus hides the head
+    assert events("stop_line", car, waiting, phases=phases) == []
 
 
 def test_with_lights_a_stop_past_the_line_on_green_is_not_stop_line():

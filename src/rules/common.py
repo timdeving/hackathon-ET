@@ -8,7 +8,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from src.features.tracks import TrackFeatures
-from src.scene.geometry import side_of_polyline
+from src.scene.geometry import distance_to_polyline, side_of_polyline
 from src.scene.scene_map import SceneMap
 
 # Signal phase codes. The GPU PC's src/scene/signals.py returns these (docs/SIGNAL_DESIGN.md §3).
@@ -151,6 +151,19 @@ def last_incoming_lane(rows: np.ndarray, scene: SceneMap) -> int | None:
     in_lane = incoming[rows["lane"]]  # lane -1 picks the final False
     hits = np.flatnonzero(in_lane)
     return int(rows["lane"][hits[-1]]) if len(hits) else None
+
+
+def nearest_incoming_lane(points: np.ndarray, scene: SceneMap) -> int | None:
+    """The incoming lane (index into scene.lanes) whose outline is nearest to the median of these
+    points, or None if there is none: for a vehicle that never drove in a drawn lane, such as a
+    moped along the kerb."""
+    incoming = [k for k, lane in enumerate(scene.lanes) if lane.role == "in"]
+    if not incoming or len(points) == 0:
+        return None
+    centre = np.median(points, axis=0)[None]
+    outlines = [np.vstack([scene.lanes[k].polygon, scene.lanes[k].polygon[:1]]) for k in incoming]
+    distances = [float(distance_to_polyline(centre, outline)[0]) for outline in outlines]
+    return incoming[int(np.argmin(distances))]
 
 
 class FrameIndex:

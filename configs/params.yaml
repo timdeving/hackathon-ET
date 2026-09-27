@@ -207,6 +207,19 @@ rules:
     # Stationary past the line at least this long (docs/RULES_DESIGN.md §5).
     min_sec: 1.0
     gap_sec: 0.5
+    # The stopped vehicle's ground point within this many of its own box heights of the stop
+    # line (added 2026-09-27, GPU side). On the samples the labelled stops sit 0.2-0.9 box heights
+    # from the line; the false ones this drops, vehicles far across the junction, 5-21.
+    max_line_heights: 2.0
+    # With the lights read, a vehicle may move off this long before the green and the event still
+    # ends at the green: the red and amber shown together before every green last 3 s here
+    # (measured on the four samples, 2026-09-27); C3902's labelled moped moves at 117.0 s, green at
+    # 117.1 s.
+    green_within_sec: 5.0
+    # If the lights are read on most frames within this many seconds of a stop, a stop in an
+    # unknown stretch (the flashing green, a bus hiding the head) gets no call instead of red
+    # guessed from the queue. Longer than a signal cycle (75 s morning, 80 s afternoon).
+    lights_window_sec: 60.0
   illegal_u_turn:
     # A U-turn: the heading reverses by at least turn_deg (150: within 30 deg of reversed) within
     # max_sec; it starts where the heading leaves its earlier direction by start_deg
