@@ -36,11 +36,10 @@ MAX_SIZE = (1920, 1080)  # 1080p: 4K clips take too long and too much memory on 
 MAX_UPLOAD_MB = 500  # 2 minutes of 1080p at up to about 30 Mb/s
 MINUTES_PER_MINUTE = (15, 20)  # processing time per minute of video on the demo's 2 CPU cores
 
-STYLE = """<style>
-.chips { margin: -4px 0 6px; }
-.chip { display: inline-block; padding: 1px 10px; margin: 0 6px 6px 0; border-radius: 999px;
-        color: #fff; font-weight: 600; font-size: 0.85rem; }
-</style>"""
+# An event type's chip. Styled inline: a style sheet passed through Markdown shows as plain text
+# in some browsers.
+CHIP = ("display:inline-block;padding:1px 10px;margin:0 6px 6px 0;border-radius:999px;"
+        "color:#fff;font-weight:600;font-size:0.85rem;background:{colour}")
 INTRO = f"""
 The system watches a clip from the hackathon's junction camera and reports its traffic events:
 pedestrians on the road outside a crossing, vehicles not yielding at a crossing, red-light
@@ -94,7 +93,7 @@ def example(folder: str) -> dict:
 
 def chip(label: str) -> str:
     colour = hex_colour(EVENT_COLOURS.get(label, OTHER_EVENT_COLOUR))
-    return f'<span class="chip" style="background:{colour}">{label}</span>'
+    return f'<span style="{CHIP.format(colour=colour)}">{label}</span>'
 
 
 def summary(result: dict) -> None:
@@ -110,8 +109,7 @@ def summary(result: dict) -> None:
     for _, _, label in events:
         counts[label] = counts.get(label, 0) + 1
     chips = " ".join(f"{chip(label)}&times;{n}" for label, n in sorted(counts.items()))
-    st.markdown(f'<div class="chips">{chips or "No events in this clip."}</div>',
-                unsafe_allow_html=True)
+    st.markdown(chips or "No events in this clip.", unsafe_allow_html=True)
 
 
 def show(result: dict, key: str) -> None:
@@ -206,7 +204,6 @@ def upload_tab() -> None:
 
 def main() -> None:
     st.set_page_config(page_title="Traffic events: live demo", page_icon="🚦", layout="wide")
-    st.markdown(STYLE, unsafe_allow_html=True)
     st.title("🚦 Traffic events from a junction camera")
     st.caption(f"Live demo · WIUT Hackathon 2026, Computer Vision track · [website]({WEBSITE}) · "
                f"[code]({REPO})")
