@@ -1,106 +1,234 @@
-# WIUT Hackathon 2026 — Computer Vision track: starter kit
+# Traffic events from a road camera: WIUT Hackathon 2026, Computer Vision track
 
-Traffic events from a fixed road camera: **detect** them as time segments
-(`[start_sec, end_sec, label]`) and, as a bonus, **anticipate** accidents with a
-causal risk score. Three files; read the task description for the rules.
+A fixed CCTV camera watches a signalised junction in Tashkent. For every video, this system
+produces:
 
-```
-solution.py          <- the ONLY file you implement (CLASSES, detect_events, RiskEstimator)
-run_submission.py    <- organizers' harness: folder of videos -> predictions.json   (do not modify)
-evaluate.py          <- format check + the official metric                          (do not modify)
-examples/            <- ground_truth.json and predictions.json in the exact format
-requirements.txt     <- numpy + opencv for the harness; add your own deps to YOUR repo
-```
+- **Part A, event detection:** timed traffic events, `[start_sec, end_sec, label]`: pedestrians
+  crossing outside the crossings, vehicles not yielding at a crossing, running a red light,
+  stopping past the stop line, crossing a solid line;
+- **Part B, accident anticipation:** for every frame, the probability that an accident starts
+  within the next 5 seconds, computed only from the frames seen so far.
 
-## Quickstart
+It runs offline on one NVIDIA GPU, with the organizers' harness (`run_submission.py`,
+`evaluate.py`) unchanged. Everything we built is in `src/`, reached through `solution.py`.
+
+## Results on the sample videos
+
+Four samples (18 minutes, 3840×2160, 29.97 fps). We labelled two of them ourselves (C3902 and
+C3905: 71 events) and score with the organizers' `evaluate.py`:
+
+| Class | F1 @ tIoU 0.3 | @ 0.5 | @ 0.7 | Mean |
+| --- | ---: | ---: | ---: | ---: |
+| `failure_to_yield` | 0.526 | 0.395 | 0.395 | 0.439 |
+| `jaywalking` | 0.714 | 0.619 | 0.381 | 0.571 |
+| `red_light` | 1.000 | 1.000 | 1.000 | 1.000 |
+| `solid_line_crossing` | 0.769 | 0.615 | 0.154 | 0.513 |
+| `stop_line` | 1.000 | 1.000 | 1.000 | 1.000 |
+| **Score A** | | | | **0.705** |
+
+- **Speed:** Part A and Part B together take 0.65–0.71× each video's duration on an RTX A6000;
+  the limit is 3×.
+- **Repeatability:** two full runs give identical output, events and risk curves alike.
+- **Part B:** the samples hold no accident, so it can't be scored on them. On ordinary traffic
+  it raises one alarm (score ≥ 0.5) in 18 minutes: a car driving through pedestrians at a
+  crossing.
+
+## Quick start
+
+Needs Python 3.10 or newer and an NVIDIA GPU with driver 525 or newer. `requirements.txt`
+installs PyTorch's CUDA 12.6 build, which brings its own CUDA libraries.
 
 ```bash
+git clone https://github.com/timdeving/hackathon-ET.git
+cd hackathon-ET
+python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-# 1. implement solution.py
-# 2. label the sample videos yourselves -> my_labels.json (same shape as examples/ground_truth.json)
-python run_submission.py --videos samples --out predictions_samples.json --team <your-team>
-python evaluate.py --pred predictions_samples.json --gt my_labels.json --per-video
-python evaluate.py --pred predictions_samples.json --validate-only        # format check without labels
+
+python run_submission.py --videos /path/to/videos --out predictions.json
+python evaluate.py --pred predictions.json --validate-only                # format check
+python evaluate.py --pred predictions.json --gt data/dev_labels.json      # scores on our labels
 ```
 
-## The interface (`solution.py`)
+`--videos` takes a folder of `.mp4` files or one file. Per video the harness prints its
+duration, the time budget, the events found and the time taken. The model is in `weights/`, so
+nothing is downloaded at run time.
 
-```python
-CLASSES = ["accident", "near_miss", "red_light", "wrong_way", "illegal_u_turn",
-           "stopped_vehicle", "jaywalking", "failure_to_yield", "illegal_turn",
-           "solid_line_crossing", "stop_line", "congestion", "road_obstacle", "fire_smoke"]
-
-def detect_events(video_path: str) -> list[list]:
-    """Part A: [[start_sec, end_sec, label], ...]; label in CLASSES; same-class segments don't overlap."""
-
-class RiskEstimator:
-    def reset(self, meta: dict) -> None: ...            # meta: video_id, fps, width, height, n_frames
-    def step(self, frame: np.ndarray, t_sec: float) -> float: ...   # BGR uint8 frame -> P(accident within 5 s)
-```
-
-`step` is called for **every frame in order** by the harness; it must not open the
-video itself. Skipping frames internally and returning the last score is fine.
-You may remove ids from `CLASSES`; never add.
-
-## What we run (offline, one GPU, no internet)
+### Docker, offline
 
 ```bash
-pip install -r requirements.txt            # or: docker build -t team .
-python run_submission.py --videos /data/test --out predictions.json
-python evaluate.py --pred predictions.json --gt ground_truth.json
+docker build -t wiut .
+docker run --rm --gpus all --network none \
+  -v /path/to/videos:/data/test:ro -v "$PWD/outputs":/app/outputs \
+  wiut python run_submission.py --videos /data/test --out outputs/predictions.json
 ```
 
-Time budget per video: **3 × its duration** for Part A + Part B together; a video
-over budget or a crash scores as empty. Events with a bad label, bad times, or a
-same-class overlap are dropped by the harness and listed in its log. Weights
-≤ 5 GB, shipped in the repo or fetched once by `weights/download.sh` before the
-offline run.
+`--network none` proves that the run needs no internet.
 
-## predictions.json
+## How it works
 
-```json
-{
-  "team": "your-team-name",
-  "videos": {
-    "test_001.mp4": {
-      "events": [[12.4, 18.9, "accident"], [40.0, 43.5, "red_light"]],
-      "risk":   [[0.00, 0.01], [0.04, 0.01], [0.08, 0.02]]
-    },
-    "test_002.mp4": {"events": [], "risk": []}
-  }
-}
+```text
+video ─► decode every frame (PyAV); every 3rd frame ─► 1280-px working image
+      ─► YOLO26m detector ─► ByteTrack tracker            (one pass; lights cut out on the way)
+      ─► camera alignment ─► track stitching ─► traffic-light phases ─► per-object features
+      ─► one rule per class ─► post-processing ─► events
 ```
 
-`risk` is written by the harness (one `[t_sec, score]` per frame). Keys are file
-names. Every test video must be present, even with `"events": []`.
-Ground truth: `{"test_001.mp4": {"duration": 600.0, "fps": 25.0, "events": [[12.0, 19.0, "accident"]]}}`.
+### Part A: events
 
-## Metric (exact code in `evaluate.py`)
+1. **Perception, one pass.** A background thread decodes every frame, while the GPU runs the
+   detector on every 3rd frame (10 per second), shrunk to 1280 px wide. The detector is YOLO26m
+   (COCO-pretrained, used as released), exported to TorchScript in FP16 and run with plain
+   PyTorch: Ultralytics isn't needed at run time. A ByteTrack tracker follows people, bicycles,
+   cars, motorcycles, buses and trucks. The same pass cuts a window around each traffic light
+   out of the full-resolution frame, and keeps only its lit-pixel counts.
+2. **Camera alignment.** The camera's aim differs between recordings (up to about 140 px at 4K,
+   1° of rotation). The median of 40 frames collected during the pass gives the empty road. It
+   is matched to the reference picture the scene map is drawn on (`configs/scene/reference.jpg`)
+   with SIFT features and a RANSAC homography. Track positions are mapped with it; the frames
+   aren't warped.
+3. **Scene map** (`configs/scene_map.json`): the road, islands, the three pedestrian crossings,
+   the junction, lanes with their direction and allowed exits, the stop line, solid lines, the
+   traffic lights, the bus stop and the exits. It is drawn once, in LabelMe
+   (`configs/scene/labelme.json`), and built with `tools/build_scene_map.py`.
+4. **Track stitching.** It joins the fragments of one object, such as a car hidden behind a bus
+   for a few seconds, so its path stays whole.
+5. **Traffic lights.** Each vehicle signal head's lit lamp (red, amber or green) is read from
+   its position in the head, then cleaned over time, giving each arm a phase on every analysed
+   frame.
+6. **Rules**, one per class, on each object's ground point in reference pixels. Speeds are in
+   the object's own box heights per second, so they mean the same near and far.
 
-**Part A.** Per class `c` and per tIoU threshold τ ∈ {0.3, 0.5, 0.7}: greedy
-one-to-one matching by descending IoU; TP/FP/FN pooled over all videos; `F1_c(τ)`.
-`Score_A = mean_c mean_τ F1_c(τ)`. Classes = those in the ground truth or in your
-predictions (a class you predict that never occurs scores 0).
+   | Class | Rule |
+   | --- | --- |
+   | `jaywalking` | A pedestrian's feet at least 60 px inside the road and outside every crossing, for 2 s or more. Riders and people seen inside vehicles are skipped |
+   | `failure_to_yield` | A moving vehicle's footprint passes over a crossing while a pedestrian is on it; the event runs from its front arriving to its rear leaving |
+   | `red_light` | The vehicle's front crosses the stop line after the light has been red for at least 1 s; the event runs until it leaves the junction |
+   | `stop_line` | A vehicle stops past the stop line on red, without entering the junction; the event runs until the green |
+   | `solid_line_crossing` | The vehicle's ground point crosses a solid line once, from 1.5 s before the crossing to 2 s after it |
 
-**Part B** (`accident` only; H = 5 s, W = 10 s, θ = 0.5). Frames in `[s−H, s)`
-before an accident start `s` are positive; frames inside accidents and around
-near-misses are ignored; the rest negative. `AP` = average precision over frames,
-chance-normalised (`max(0, (AP_raw − r)/(1 − r))`, `r` = positive rate, so a
-constant score gets 0). Alarms = runs of score ≥ θ (runs < 2 s apart merged),
-alarm time = run start; an alarm in `[s−W, s)` of an unmatched accident matches it
-→ `F1_alarm`; `mTTA` = mean of `s − alarm_time` (0 if unmatched).
-`Score_B = 0.4·AP + 0.4·F1_alarm + 0.2·mTTA/W`.
+7. **Post-processing.** Same-class fragments are merged, sub-second blips dropped, and
+   same-class segments never overlap.
+8. **Time budget.** Before starting, Part A measures how fast this machine decodes this video
+   the way the harness will for Part B. It then gives itself a deadline, so Part A and Part B
+   together stay inside the 3× limit.
 
-**Model score** `M = 0.7·Score_A + 0.3·Score_B` (M = Score_A if the test set has no
-accidents). Elimination score = 0.6·M + 0.25·Website + 0.15·Code.
+**Classes predicted.** Score A averages F1 over every class in the test set *and* every class
+predicted, so predicting a class the test set lacks adds a zero. We predict only the five classes
+above, whose rules score well on our labels. Rules for `stopped_vehicle`, `congestion`,
+`wrong_way`, `illegal_turn` and `illegal_u_turn` exist, but are switched off: on our labels none
+of them finds a true event. For example, vehicles waiting inside the junction for their green are
+queued at a signal, which the `stopped_vehicle` definition excludes, and the U-turns here are
+legal. `accident`, `near_miss`, `road_obstacle` and `fire_smoke` aren't predicted. The list
+lives in `configs/params.yaml` (`rules.enabled`).
 
-## Tips
+### Part B: accident risk
 
-- Label the sample videos yourselves with the conventions from the task
-  description and run `evaluate.py` against them. Without a dev set you are guessing.
-- Detector + tracker → trajectories; most classes are rules on trajectories plus
-  the scene layout. Learned models help most for `accident` / `near_miss`.
-- Post-process segments: merge fragments, drop sub-second blips, then check F1@0.7.
-- For Part B, time-to-collision from tracks is a strong simple signal; calibrate
-  so that 0.5 means "probably within 5 s". A flat 1.0 scores ≈ 0.
-- Print your runtime early; sampling every 2nd–5th frame is usually enough.
+`RiskEstimator.step(frame, t_sec)` sees only the frames given to it, in order. It never opens the
+video and never uses Part A's results. Every 3rd frame it runs its own copy of the detector and
+its own tracker. Each track's velocity comes from its last 0.6 s of positions. For every pair
+that includes a moving vehicle, it computes when and how close the two would come on their
+current courses (their time to collision). The riskiest pair sets the frame's raw risk: about
+0.5 when they would meet within 1 s. An exponential average of past values smooths it, so one
+noisy frame can't raise an alarm. Boxes cut off by the frame's edge, and the far road at the top
+of the picture (where perspective squeezes distances), take no part. Its work is capped at its
+share of the time budget; past that it stops analysing and keeps its last score.
+
+### Determinism
+
+Seeds are fixed (Python, NumPy and PyTorch, all 0); cuDNN runs in deterministic mode with
+benchmarking off, and TF32 is off. Nothing samples at random. Two runs on the same machine write
+identical `predictions.json` files (`python -m tools.check_determinism predictions A.json
+B.json`).
+
+## Settings
+
+- **`configs/params.yaml`:** every threshold (detector, tracker, stitching, features, each rule,
+  post-processing, traffic lights, Part B, time budget). Each has a comment saying where its value
+  came from: measured on the samples' tracks, or tuned on our labels.
+- **`configs/scene_map.json`, `configs/scene/`:** the scene map, its LabelMe source, the
+  reference picture, and an overlay picture for checking it.
+- **`weights/`:** the exported detector and how it was made (`weights/README.md`).
+
+## Development
+
+```bash
+pip install pytest ruff
+pytest -q            # 212 tests, on synthetic data: no video needed
+ruff check .
+```
+
+Laptops without a GPU can install `requirements-dev.txt` instead; tests that need PyTorch are
+then skipped.
+
+Tuning the rules doesn't need the GPU: perception results are cached once, then every rule runs
+on the cache and is scored in seconds.
+
+```bash
+python -m tools.cache_tracks samples                  # GPU: perception results into cache/
+python -m tools.eval_from_cache                       # every rule, scored on data/dev_labels.json
+python -m tools.eval_from_cache --rules jaywalking --set rules.jaywalking.min_sec=1.5
+```
+
+| Tool | What it does |
+| --- | --- |
+| `tools/cache_tracks.py` | Runs perception on videos and saves detections, tracks and light readings to `cache/` |
+| `tools/eval_from_cache.py` | Rules on cached tracks, scored with the organizers' code; `--set` overrides any setting |
+| `tools/check_determinism.py` | Runs perception twice, or compares two predictions files |
+| `tools/check_signals.py` | Traffic-light timelines and contact sheets, for checking the phases |
+| `tools/build_scene_map.py` | Builds `configs/scene_map.json` from the LabelMe drawing and checks it |
+| `tools/labels_to_ground_truth.py` | Turns our label files into `data/dev_labels.json`, in the organizers' format |
+| `tools/align_videos.py`, `tools/measure_drift.py` | Camera alignment of the samples, and how the view drifts |
+| `tools/check_stitching.py` | Pictures of stitched track fragments, for checking by eye |
+| `tools/export_detector.py` | Exports a YOLO model to TorchScript (separate environment: `requirements-export.txt`) |
+| `tools/check_detector.py`, `tools/bench_detector.py`, `tools/bench_decode.py` | Detector accuracy against Ultralytics, detector and decoder speed |
+| `tools/check_frame_parity.py` | Checks that our decoder numbers frames exactly like the harness |
+| `tools/pin_requirements.sh` | Pins `requirements.txt` for Linux and Windows from `requirements.in` |
+
+## Repository layout
+
+```text
+solution.py            the interface the harness imports (detect_events, RiskEstimator, CLASSES)
+run_submission.py      the organizers' harness, unchanged
+evaluate.py            the organizers' scorer, unchanged
+src/
+  part_a.py            Part A, end to end
+  budget.py            the time budget
+  video/               decoding (PyAV), frame numbering as the harness counts
+  perception/          detector, tracker, the one-pass pipeline, cache, track stitching
+  scene/               scene map, geometry, camera alignment, traffic lights
+  features/            per-object features: ground points, speeds, zones, lanes
+  rules/               one rule per class
+  postprocess/         merging and clean-up of event segments
+  risk/                Part B: the risk estimator and time to collision
+configs/               params.yaml, the scene map and its sources
+weights/               the exported detector
+data/                  our dev labels (dev_labels.json) and the label files they came from
+tools/                 development tools (above)
+tests/                 unit tests, on synthetic data
+examples/              the organizers' example files
+```
+
+## Models, data and licences
+
+- **Detector:** YOLO26m by Ultralytics, pretrained on COCO and used as released, without
+  fine-tuning. Ultralytics models are licensed under AGPL-3.0
+  (<https://github.com/ultralytics/ultralytics>). It's exported to TorchScript FP16 with a fixed
+  736×1280 input; `weights/README.md` has the export command and the file's SHA-256.
+- **COCO** (Lin et al., 2014): used only through the pretrained weights. The annotations are
+  licensed CC BY 4.0.
+- **ByteTrack** (Zhang et al., 2022; MIT licence): its algorithm, reimplemented in NumPy and
+  SciPy in `src/perception/tracker.py`.
+- **No other datasets** and no other footage of this camera. Our labels were made by hand on the
+  organizers' sample videos (`data/`).
+- **Runtime libraries:** PyTorch and torchvision (BSD), OpenCV (Apache 2.0), PyAV (BSD; its wheel
+  bundles FFmpeg, LGPL), NumPy and SciPy (BSD), PyYAML (MIT).
+
+## Limitations
+
+- **One camera.** The scene map is drawn for this junction's view. Another camera needs its own
+  map; the code itself assumes nothing about resolution or frame rate.
+- **Small dev set.** Our labels cover two videos (71 events), and the organizers' conventions
+  may differ from ours in places.
+- **Part B is untested on accidents:** the samples contain none. Its thresholds were set so that
+  ordinary traffic rarely raises an alarm.
+- **GPU required.** The detector file is exported for CUDA in FP16.

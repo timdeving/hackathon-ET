@@ -50,3 +50,14 @@ def test_an_unknown_parameter_is_refused(tmp_path, run_python):
                         "--set", "rules.jaywalking.min_secs=2")
     assert result.returncode != 0
     assert "no parameter 'rules.jaywalking.min_secs'" in result.stderr
+
+
+def test_the_commit_is_unknown_where_git_is_missing(monkeypatch):
+    """The Docker image has no git: the results log still gets a line."""
+    from tools import eval_from_cache
+
+    def no_git(*args, **kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(eval_from_cache.subprocess, "run", no_git)
+    assert eval_from_cache._commit() == "unknown"

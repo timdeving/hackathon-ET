@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import subprocess
 
 import numpy as np
 
@@ -60,3 +61,13 @@ def test_the_version_follows_the_settings():
     assert settings_version(SETTINGS) == settings_version(dict(reversed(list(SETTINGS.items()))))
     changed = {**SETTINGS, "video": {"stride": 2, "width": 1280}}
     assert settings_version(changed) != settings_version(SETTINGS)
+
+
+def test_a_result_is_saved_where_git_is_missing(tmp_path, monkeypatch):
+    """The Docker image has no git: the cache records the commit as unknown instead of failing."""
+    def no_git(*args, **kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(subprocess, "run", no_git)
+    folder = save_result(small_result(), tmp_path, SETTINGS)
+    assert json.loads((folder / "meta.json").read_text())["git_commit"] == "unknown"

@@ -80,11 +80,15 @@ def load_result(folder: str | Path) -> PerceptionResult:
 
 
 def _git_commit() -> str:
-    """The current commit, marked "-dirty" when tracked files have uncommitted changes."""
+    """The current commit, marked "-dirty" when tracked files have uncommitted changes; "unknown"
+    outside a git checkout, or where git isn't installed (the Docker image)."""
     def git(*args: str) -> str:
-        return subprocess.run(
-            ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=False
-        ).stdout.strip()
+        try:
+            return subprocess.run(
+                ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=False
+            ).stdout.strip()
+        except OSError:
+            return ""
 
     commit = git("rev-parse", "--short", "HEAD") or "unknown"
     return commit + ("-dirty" if git("status", "--porcelain", "--untracked-files=no") else "")

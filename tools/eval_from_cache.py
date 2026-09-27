@@ -217,13 +217,17 @@ def append_log(
 
 
 def _commit() -> str:
-    """The current commit, marked "-dirty" when tracked files have uncommitted changes."""
+    """The current commit, marked "-dirty" when tracked files have uncommitted changes; "unknown"
+    outside a git checkout, or where git isn't installed (the Docker image)."""
     def git(*args: str) -> str:
-        return subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True,
-                              check=False).stdout.strip()
+        try:
+            return subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True,
+                                  check=False).stdout.strip()
+        except OSError:
+            return ""
 
     dirty = git("status", "--porcelain", "--untracked-files=no")
-    return git("rev-parse", "--short", "HEAD") + ("-dirty" if dirty else "")
+    return (git("rev-parse", "--short", "HEAD") or "unknown") + ("-dirty" if dirty else "")
 
 
 if __name__ == "__main__":
