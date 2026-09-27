@@ -24,7 +24,7 @@ from src.config import load_params
 from src.perception.boxes import Detections
 from src.risk import estimator
 from src.video.probe import VideoInfo, probe_video
-from src.visualize import H264Writer, draw_frame, events_under_way, tracks_by_frame
+from src.visualize import H264Writer, by_frame, draw_frame, events_under_way
 
 MAX_SECONDS = 120.0  # the demo accepts clips up to 2 minutes
 JPEG_QUALITY = 90  # the analysed frames, kept on disk until they are drawn on
@@ -49,10 +49,7 @@ class ReplayDetector:
     def __init__(self, detections: np.ndarray, width: int, info: VideoInfo, frame_now) -> None:
         self.scale = width / info.width
         self.input_size = (round(info.height * self.scale), width)  # (h, w), like the detector's
-        frames, starts = np.unique(detections["frame"], return_index=True)
-        order = np.argsort(detections["frame"], kind="stable")
-        rows = np.split(detections[order], starts[1:]) if len(detections) else []
-        self.by_frame = dict(zip(frames.tolist(), rows, strict=True))
+        self.by_frame = by_frame(detections)
         self.frame_now = frame_now  # () -> the frame number the estimator is analysing
 
     def __call__(self, image: np.ndarray) -> Detections:
@@ -65,27 +62,27 @@ class ReplayDetector:
                           rows["class_id"].astype(np.int64))
 
 
-def check(video_path: str | Path) -> VideoInfo:
+def check(video_path: str | Path, max_seconds: float | None = MAX_SECONDS) -> VideoInfo:
     """The clip's properties; ValueError, with a message for the visitor, if the demo can't take
-    it."""
+    it. max_seconds: the longest clip accepted (None: any length, for the website's renders)."""
     try:
         info = probe_video(video_path)
     except Exception as error:
         raise ValueError(f"This file can't be read as a video ({error}).") from error
     if info.n_frames < 2 or info.fps <= 0:
         raise ValueError("This file holds no video frames.")
-    if info.duration > MAX_SECONDS + 1.0:
+    if max_seconds is not None and info.duration > max_seconds + 1.0:
         raise ValueError(f"The clip is {info.duration:.0f} s long; the demo takes up to "
-                         f"{MAX_SECONDS:.0f} s. Please cut it shorter.")
+                         f"{max_seconds:.0f} s. Please cut it shorter.")
     return info
 
 
-def process(video_path: str | Path, workdir: str | Path, progress: Progress | None = None
-            ) -> DemoResult:
+def process(video_path: str | Path, workdir: str | Path, progress: Progress | None = None,
+            max_seconds: float | None = MAX_SECONDS) -> DemoResult:
     """Run the system on one clip; everything it writes goes into workdir."""
     progress = progress or (lambda fraction, text: None)
     start = time.perf_counter()
-    info = check(video_path)
+    info = check(video_path, max_seconds)
     params = load_params()
     if params["risk"]["stride"] != params["video"]["stride"]:
         raise RuntimeError("the replay needs Part A and Part B to analyse the same frames")
@@ -142,7 +139,7 @@ def render(analysis: part_a.Analysis, info: VideoInfo, saved: list[tuple[int, Pa
     on them, as an H.264 clip at the analysed frame rate."""
     if not saved:
         raise RuntimeError("no frame was analysed")
-    tracks = tracks_by_frame(analysis.result.tracks)
+    tracks = by_frame(analysis.result.tracks)
     none = analysis.result.tracks[:0]
     lights = next(iter(analysis.phases.values()), None)  # the scene map has one arm with lights
     first = cv2.imread(str(saved[0][1]))

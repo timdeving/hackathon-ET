@@ -29,7 +29,7 @@ from src.visualize import EVENT_COLOURS, OTHER_EVENT_COLOUR  # noqa: E402
 log = logging.getLogger("demo")
 EXAMPLES_DIR = Path(__file__).resolve().parent / "examples"
 REPO_URL = "https://github.com/timdeving/hackathon-ET"
-MINUTES_PER_MINUTE = 16  # processing time per minute of 4K video on this Space's 2 CPU cores
+MINUTES_PER_MINUTE = "15-20"  # per minute of 4K video on 2 CPU cores (13.5 on our server's)
 
 INTRO = f"""
 # Traffic events from a junction camera: live demo
@@ -41,7 +41,7 @@ accident starts within 5 seconds. You get back the events, their timeline, the r
 the video with everything drawn on it.
 
 > **This free demo runs on 2 CPU cores, so it is slow:** about {MINUTES_PER_MINUTE} minutes per
-> minute of video, so a 2-minute clip takes about half an hour. Keep this page open while it
+> minute of video, so a 2-minute clip takes 30-40 minutes. Keep this page open while it
 > runs. On a GPU the same system handles a video faster than it plays: to run it there, follow
 > the [repository]({REPO_URL})'s README. The ready-made results below show instantly.
 
@@ -120,8 +120,10 @@ def run_upload(file, progress=gr.Progress()):  # noqa: B008  (how Gradio asks fo
                    result.predictions, result.seconds)
 
 
-def example_names() -> list[str]:
-    return sorted(p.name for p in EXAMPLES_DIR.glob("*") if (p / "meta.json").exists())
+def example_choices() -> list[tuple[str, str]]:
+    """(title, folder) of each ready-made example (demo/make_examples.py)."""
+    folders = sorted(p for p in EXAMPLES_DIR.glob("*") if (p / "meta.json").exists())
+    return [(json.loads((p / "meta.json").read_text())["title"], p.name) for p in folders]
 
 
 def show_example(name: str | None):
@@ -140,9 +142,9 @@ def build() -> gr.Blocks:
         gr.Markdown(INTRO)
         with gr.Tabs():
             with gr.Tab("Ready-made results (instant)"):
-                names = example_names()
-                choice = gr.Dropdown(names, value=names[0] if names else None,
-                                     label="A clip of a sample video")
+                choices = example_choices()
+                choice = gr.Dropdown(choices, value=choices[0][1] if choices else None,
+                                     label="A one-minute clip of a sample video")
                 show = gr.Button("Show the results", variant="primary")
             with gr.Tab("Upload your clip"):
                 upload = gr.File(label=f"Your clip (.mp4, up to {MAX_SECONDS / 60:.0f} min)",

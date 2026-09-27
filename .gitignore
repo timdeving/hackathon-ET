@@ -12,3 +12,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+.venv-demo/
+
+# The live demo's ready-made results: made by demo/make_examples.py, shipped in the Space only.
+demo/examples/

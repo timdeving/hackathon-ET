@@ -111,10 +111,11 @@ def _label(image: np.ndarray, text: str, origin: tuple[int, int], colour, size: 
         cv2.putText(image, text, origin, cv2.FONT_HERSHEY_SIMPLEX, size, ink, width, cv2.LINE_AA)
 
 
-def tracks_by_frame(tracks: np.ndarray) -> dict[int, np.ndarray]:
-    """The tracks table split by frame number."""
-    order = np.argsort(tracks["frame"], kind="stable")
-    ordered = tracks[order]
+def by_frame(table: np.ndarray) -> dict[int, np.ndarray]:
+    """A table with a "frame" column (tracks, detections) split by frame number, in any order."""
+    if len(table) == 0:
+        return {}
+    ordered = table[np.argsort(table["frame"], kind="stable")]
     frames, starts = np.unique(ordered["frame"], return_index=True)
     return dict(zip(frames.tolist(), np.split(ordered, starts[1:]), strict=True))
 

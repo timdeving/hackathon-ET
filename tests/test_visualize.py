@@ -9,7 +9,7 @@ import pytest
 
 from src.perception.pipeline import TRACK_DTYPE
 from src.rules.common import RED
-from src.visualize import H264Writer, draw_frame, events_under_way, tracks_by_frame
+from src.visualize import H264Writer, by_frame, draw_frame, events_under_way
 
 
 def a_car_and_a_person() -> np.ndarray:
@@ -27,15 +27,16 @@ def test_the_events_under_way_are_those_covering_the_moment():
     assert events_under_way(events, 9.0) == []  # the end is outside the segment
 
 
-def test_tracks_are_split_by_frame():
-    by_frame = tracks_by_frame(a_car_and_a_person())
-    assert sorted(by_frame) == [0, 3]
-    assert by_frame[3]["track_id"].tolist() == [1, 2]
+def test_tracks_are_split_by_frame_in_any_order_and_an_empty_table_gives_none():
+    split = by_frame(a_car_and_a_person())  # frames 3, 0, 3
+    assert sorted(split) == [0, 3]
+    assert split[3]["track_id"].tolist() == [1, 2]
+    assert by_frame(a_car_and_a_person()[:0]) == {}  # a clip where nothing was tracked
 
 
 def test_drawing_leaves_the_original_alone_and_marks_the_objects():
     image = np.zeros((240, 320, 3), np.uint8)
-    tracks = tracks_by_frame(a_car_and_a_person())[3]
+    tracks = by_frame(a_car_and_a_person())[3]
     drawn = draw_frame(image, tracks, (0.25, 0.25), 1.5, ["jaywalking"], risk=0.7, light=RED)
     assert image.sum() == 0 and drawn.shape == image.shape
     assert drawn[50:150, 100:200].any()  # the car's box, at a quarter of its full-res position
