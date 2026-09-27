@@ -184,7 +184,7 @@ def print_timeline(
         for event in sorted(truth):
             best = max(found, key=lambda f: evaluate.tiou(event, f), default=None)
             overlap = evaluate.tiou(event, best) if best else 0.0
-            match = f"predicted {best[0]:.2f}-{best[1]:.2f}, tIoU {overlap:.2f}"
+            match = f"predicted {best[0]:.2f}-{best[1]:.2f}, tIoU {overlap:.2f}" if best else ""
             print(f"    labelled  {event[0]:8.2f}-{event[1]:<8.2f} "
                   + (match if overlap > 0 else "nothing predicted there"))
         for event in sorted(found):
