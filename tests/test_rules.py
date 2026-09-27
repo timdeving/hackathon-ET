@@ -7,7 +7,6 @@ import pytest
 
 from src.features.tracks import NoAlignment
 from src.rules import find_events
-from src.rules.solid_line_crossing import _pair_corners
 from src.scene.scene_map import SceneMap
 from tests.synthetic_tracks import (
     CAR,
@@ -123,12 +122,19 @@ def test_reversing_slowly_is_not_wrong_way():
 
 # solid_line_crossing -------------------------------------------------------------------------
 
-def test_crossing_the_solid_line_runs_from_the_first_corner_to_the_second():
-    # The line rises from y = 400 at x = 0 to y = 460 at x = 600, so at y = 435 it's at x = 350.
-    # The car's right corner (x + 40) gets there at t = 1.7 s, its left corner (x - 40) at 2.5 s.
+def test_crossing_the_solid_line_is_a_window_around_the_ground_point_crossing_it():
+    # The line rises from y = 400 at x = 0 to y = 460 at x = 600, so at y = 435 it's at x = 350:
+    # the car's ground point gets there at t = 2.1 s. The event: 1.5 s before to 2.0 s after.
     t = times(0, 4)
     car = track(1, CAR, t, 140 + 100 * t, 435, width=80, height=50)
-    assert_one_event(events("solid_line_crossing", car), 1.7, 2.5)
+    assert_one_event(events("solid_line_crossing", car), 0.6, 4.1)
+
+
+def test_a_box_wider_than_the_car_still_crosses_by_its_ground_point():
+    """The bug the samples showed: a wide box's corners straddle the line all along."""
+    t = times(0, 4)
+    van = track(1, CAR, t, 140 + 100 * t, 435, width=400, height=50)
+    assert_one_event(events("solid_line_crossing", van), 0.6, 4.1)
 
 
 def test_staying_on_one_side_of_the_solid_line_is_fine():
@@ -136,11 +142,11 @@ def test_staying_on_one_side_of_the_solid_line_is_fine():
     assert events("solid_line_crossing", track(1, CAR, t, 100 + 100 * t, 480, 80, 50)) == []
 
 
-def test_a_corner_that_crosses_and_comes_back_is_only_a_touch():
-    touch = [(1.0, "left", 1.0), (1.5, "left", -1.0), (2.0, "right", 1.0)]
-    assert _pair_corners(touch, max_sec=4.0, dt=0.1) == []
-    assert _pair_corners([(1.0, "right", 1.0), (1.8, "left", 1.0)], 4.0, 0.1) == [(1.0, 1.8)]
-    assert _pair_corners([(1.0, "right", 1.0), (6.0, "left", 1.0)], 4.0, 0.1) == []
+def test_driving_along_the_line_back_and_forth_across_it_is_not_a_lane_change():
+    t = times(0, 6)
+    x = 100 + 100 * t
+    along = 400 + x * 0.1 + 8 * np.sin(2 * np.pi * t / 2)  # the line is y = 400 + 0.1 x
+    assert events("solid_line_crossing", track(1, CAR, t, x, along, 80, 50)) == []
 
 
 # the framework -------------------------------------------------------------------------------

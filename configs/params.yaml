@@ -179,9 +179,13 @@ rules:
     min_sec: 1.0
     gap_sec: 0.5
   solid_line_crossing:
-    # The second corner must cross within this many seconds of the first; a lane change takes
-    # 1-3 s.
-    max_sec: 4.0
+    # The event runs from before_sec before the vehicle's ground point crosses the solid line to
+    # after_sec after it. Tuned on dev labels (C3902, C3905), 2026-09-27: the ground point crosses
+    # a drawn solid line in 5 of the 6 labelled events (1.9-10.2 s long); these windows score a
+    # mean F1 of 0.476 (TP/FP/FN at tIoU 0.3: 5/3/1), against 0.286-0.381 for 1.0/1.0,
+    # 1.5/1.5 and 2.0/2.0. Only five examples: re-check with more labels.
+    before_sec: 1.5
+    after_sec: 2.0
   stopped_vehicle:
     # Stationary at least this long: the task's definition.
     min_sec: 10.0
