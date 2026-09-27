@@ -146,21 +146,30 @@ rules:
   # One section per rule (src/rules/<class>.py); all starting values until tuned on dev labels.
   jaywalking:
     # Feet must be at least this far inside the road outline (reference pixels): ignores feet
-    # jittering around the kerb.
-    edge_margin_px: 20
-    # On the road outside a crossing for at least this long (docs/RULES_DESIGN.md §5).
-    min_sec: 1.0
+    # jittering around the kerb. Tuned on dev labels (C3902, C3905), 2026-09-27: 60 lifts the mean
+    # F1 from 0.423 to 0.531, on each video (C3902 0.36 -> 0.52, C3905 0.51 -> 0.55), mostly by no
+    # longer counting people waiting at the far bus stop, whose feet sit on the kerb line. The
+    # optimum is narrow on C3902 (50: 0.32, 70: 0.43): re-check when more videos are labelled.
+    edge_margin_px: 60
+    # On the road outside a crossing for at least this long (docs/RULES_DESIGN.md §5). Tuned on
+    # dev labels (C3902, C3905), 2026-09-27: 2.0 with the margin above gives 0.548 (1.0: 0.531;
+    # 3.0: 0.397), better on both videos.
+    min_sec: 2.0
     # Gaps up to this long are bridged: feet flickering across a crossing's edge.
     gap_sec: 0.5
   failure_to_yield:
     # The bottom share of a vehicle's box taken as its outline on the ground.
     footprint_share: 0.4
     # A pedestrian's feet within this many reference pixels of a crossing count as stepping
-    # onto it.
-    approach_margin_px: 30
+    # onto it. Tuned on dev labels (C3902, C3905), 2026-09-27: 0 (only people on the crossing),
+    # since at 30 everyone waiting at the kerb counted for every passing vehicle.
+    approach_margin_px: 0
     # The vehicle must move at least this fast while the pedestrian is there (box heights per
-    # second); slower is creeping in a queue.
-    min_speed: 0.5
+    # second); slower is creeping in a queue. Tuned on dev labels (C3902, C3905), 2026-09-27: 1.0
+    # (0.75 about the same, 1.5 worse on C3902). With approach_margin_px 0 and the merge gap in
+    # postprocess.per_class, the mean F1 goes from 0.251 to 0.36 (C3902 0.21 -> 0.26, C3905
+    # 0.31 -> 0.68).
+    min_speed: 1.0
   wrong_way:
     # Heading against the lane: cosine with the lane's flow below this (-0.5: more than 120 deg
     # off; docs/RULES_DESIGN.md §5).
@@ -228,7 +237,11 @@ postprocess:
     # Drop segments shorter than this (seconds). Must stay > 0.
     # Starting value: the starter kit's advice to drop blips < 0.5 s; tune at tIoU 0.7.
     min_duration_sec: 0.5
-  per_class: {}
+  per_class:
+    # One event per vehicle pass (the task's convention): the labels keep passes 0.3-1.4 s apart
+    # separate and have passes as short as 0.4 s, which the defaults merge and drop. Tuned on dev
+    # labels (C3902, C3905), 2026-09-27, with the failure_to_yield rule values above.
+    failure_to_yield: {merge_gap_sec: 0.3, min_duration_sec: 0.2}
 
 stitching:
   # Track stitching (src/perception/stitching.py), Part A only: a track that vanishes
