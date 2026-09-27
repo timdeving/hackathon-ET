@@ -14,5 +14,5 @@ __pycache__/
 .venv/
 .venv-demo/
 
-# The live demo's ready-made results: made by demo/make_examples.py, shipped in the Space only.
+# The live demo's ready-made results: made by demo/make_examples.py, served from the media dataset.
 demo/examples/

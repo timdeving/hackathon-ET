@@ -4,15 +4,16 @@ website's annotated sample videos. The submission itself never draws.
 Each frame shows the tracked road users (Part A's tracks, in the video's own pixels, scaled to
 the image drawn on), a banner with the time and the events under way, the top arm's traffic
 light as read, and Part B's risk as a bar that turns red at the alarm threshold. Frames are
-encoded as H.264 through the system's ffmpeg, so browsers can play the result.
+encoded as H.264 with the x264 encoder PyAV bundles, so browsers can play the result and no
+system ffmpeg is needed.
 """
 from __future__ import annotations
 
-import shutil
-import subprocess
 from collections.abc import Sequence
+from fractions import Fraction
 from pathlib import Path
 
+import av
 import cv2
 import numpy as np
 
@@ -121,31 +122,32 @@ def by_frame(table: np.ndarray) -> dict[int, np.ndarray]:
 
 
 class H264Writer:
-    """Writes BGR frames of one size to an H.264 MP4 that browsers play, through ffmpeg."""
+    """Writes BGR frames of one size to an H.264 MP4 that browsers play."""
 
     def __init__(self, path: str | Path, fps: float, size: tuple[int, int]) -> None:
-        ffmpeg = shutil.which("ffmpeg")
-        if ffmpeg is None:
-            raise RuntimeError("ffmpeg is needed to write browser-playable video")
         width, height = size
+        if width % 2 or height % 2:
+            raise ValueError(f"H.264 in yuv420p needs an even width and height, not {size}")
         self.size = size
-        self.process = subprocess.Popen(
-            [ffmpeg, "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24",
-             "-s", f"{width}x{height}", "-r", f"{fps:.4f}", "-i", "-",
-             "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
-             "-movflags", "+faststart", str(path)],
-            stdin=subprocess.PIPE,
-        )
+        # faststart: the index at the front, so a browser can play before the whole file loads
+        self.container = av.open(str(path), mode="w", options={"movflags": "+faststart"})
+        rate = Fraction(fps).limit_denominator(1000)
+        self.stream = self.container.add_stream("libx264", rate=rate)
+        self.stream.width, self.stream.height = width, height
+        self.stream.pix_fmt = "yuv420p"
+        self.stream.options = {"preset": "veryfast", "crf": "26"}
 
     def write(self, image: np.ndarray) -> None:
         if (image.shape[1], image.shape[0]) != self.size:
             image = cv2.resize(image, self.size, interpolation=cv2.INTER_AREA)
-        self.process.stdin.write(np.ascontiguousarray(image).tobytes())
+        frame = av.VideoFrame.from_ndarray(np.ascontiguousarray(image), format="bgr24")
+        for packet in self.stream.encode(frame):
+            self.container.mux(packet)
 
     def close(self) -> None:
-        self.process.stdin.close()
-        if self.process.wait() != 0:
-            raise RuntimeError("ffmpeg failed to write the video")
+        for packet in self.stream.encode():  # flush the encoder's delayed frames
+            self.container.mux(packet)
+        self.container.close()
 
     def __enter__(self) -> H264Writer:
         return self

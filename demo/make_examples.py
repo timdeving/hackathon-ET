@@ -3,8 +3,10 @@ the demo's processing, so that visitors see results without waiting.
 
     python -m demo.make_examples samples [--out demo/examples]
 
-Run it on the GPU server (the clips take about a minute each there, half an hour each on the
-Space's CPU). The folder it writes is copied into the Space by demo/build_space.sh.
+Run it on the GPU server (the clips take about a minute each there, far longer on the demo's
+CPU), then upload the folder to the media dataset the app reads them from:
+
+    hf upload akmaloio/wiut-traffic-media demo/examples demo_examples --repo-type dataset
 """
 from __future__ import annotations
 

@@ -79,6 +79,17 @@ On a 20-second clip of a sample, the CPU run finds the same events and the same 
 GPU run, but much more slowly: the detector takes about 1.2 s per analysed frame on 2 CPU cores.
 Without the variable, `params.yaml` alone applies, as in the judged run.
 
+**The live demo** (`demo/`) is a Streamlit app on this profile: upload a clip of up to 2 minutes
+at 1080p and get its events, timeline, risk curve and annotated video back. It runs the same
+code; to save time on a CPU, Part B there reuses the detections Part A made on the same frames
+instead of running the detector again. Ready-made results for one-minute clips of the samples
+come from the project's media dataset on Hugging Face.
+
+```bash
+pip install -r demo/requirements.txt          # PyTorch's CPU build, Streamlit, Plotly
+streamlit run demo/streamlit_app.py
+```
+
 ## How it works
 
 ```text
@@ -201,6 +212,8 @@ python -m tools.eval_from_cache --rules jaywalking --set rules.jaywalking.min_se
 | `tools/check_detector.py`, `tools/bench_detector.py`, `tools/bench_decode.py` | Detector accuracy against Ultralytics, detector and decoder speed |
 | `tools/check_frame_parity.py` | Checks that our decoder numbers frames exactly like the harness |
 | `tools/pin_requirements.sh` | Pins `requirements.txt` for Linux and Windows from `requirements.in` |
+| `tools/render_samples.py` | Annotated versions of whole videos (tracks, events, the light, the risk), for the website |
+| `demo/make_examples.py` | The live demo's ready-made results, from one-minute clips of the samples |
 
 ## Repository layout
 
@@ -218,7 +231,9 @@ src/
   rules/               one rule per class
   postprocess/         merging and clean-up of event segments
   risk/                Part B: the risk estimator and time to collision
-configs/               params.yaml, the scene map and its sources
+  visualize.py         drawing results on frames (the demo and the website; not the submission)
+demo/                  the live demo: a Streamlit app on the CPU profile, and its examples
+configs/               params.yaml, the scene map and its sources, profiles/ (the demo's)
 weights/               the exported detector
 data/                  our dev labels (dev_labels.json) and the label files they came from
 tools/                 development tools (above)

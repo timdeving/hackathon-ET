@@ -1,8 +1,6 @@
 """Drawing results onto frames, and writing browser-playable video."""
 from __future__ import annotations
 
-import shutil
-
 import cv2
 import numpy as np
 import pytest
@@ -43,7 +41,6 @@ def test_drawing_leaves_the_original_alone_and_marks_the_objects():
     assert drawn[-30:, :100].any()  # the risk bar
 
 
-@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
 def test_the_writer_makes_a_video_with_every_frame(tmp_path):
     path = tmp_path / "out.mp4"
     with H264Writer(path, 10.0, (64, 48)) as writer:
@@ -53,3 +50,8 @@ def test_the_writer_makes_a_video_with_every_frame(tmp_path):
     assert int(capture.get(cv2.CAP_PROP_FRAME_COUNT)) == 5
     size = capture.get(cv2.CAP_PROP_FRAME_WIDTH), capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
     assert size == (64, 48)
+
+
+def test_the_writer_refuses_an_odd_size(tmp_path):
+    with pytest.raises(ValueError, match="even"):
+        H264Writer(tmp_path / "odd.mp4", 10.0, (65, 48))
