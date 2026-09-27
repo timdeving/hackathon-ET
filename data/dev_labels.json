@@ -49,11 +49,6 @@
     "jaywalking"
    ],
    [
-    47.333,
-    109.473,
-    "illegal_u_turn"
-   ],
-   [
     47.922,
     50.882,
     "jaywalking"
@@ -132,11 +127,6 @@
     203.274,
     203.83,
     "jaywalking"
-   ],
-   [
-    204.208,
-    243.588,
-    "illegal_u_turn"
    ],
    [
     204.731,
@@ -235,11 +225,6 @@
     "jaywalking"
    ],
    [
-    0.0,
-    16.16,
-    "illegal_u_turn"
-   ],
-   [
     1.149,
     20.469,
     "failure_to_yield"
@@ -298,11 +283,6 @@
     63.471,
     63.931,
     "failure_to_yield"
-   ],
-   [
-    63.97,
-    100.28237,
-    "illegal_u_turn"
    ],
    [
     65.17,
