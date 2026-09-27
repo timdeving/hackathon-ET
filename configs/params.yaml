@@ -148,7 +148,10 @@ rules:
   # labelled in the dev videos whose rules score (mean F1 on C3902 + C3905): jaywalking 0.548,
   # failure_to_yield 0.393, stop_line 1.000, red_light 1.000, solid_line_crossing 0.476; Score A
   # 0.5696. Left off: illegal_u_turn (no match, 17 false alarms; its labels' convention is open),
-  # stopped_vehicle (parked cars), illegal_turn, wrong_way, congestion (no labels to score).
+  # illegal_turn, wrong_way, congestion (no labels to score), and stopped_vehicle (the team's
+  # call, 2026-09-27): outside the junction it finds parked cars and queues; inside it, cars
+  # waiting for their turn in the signal cycle, which the definition excludes as queued at a
+  # signal (75 stops of 10 s or more on the four samples; C3905 has three, none labelled).
   enabled: [jaywalking, failure_to_yield, stop_line, red_light, solid_line_crossing]
   # One section per rule (src/rules/<class>.py); all starting values until tuned on dev labels.
   jaywalking:
