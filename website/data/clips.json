@@ -1,0 +1,79 @@
+{
+ "note": "Chosen by hand from our events on the labelled videos (C3902, C3905); cut from the annotated renders by python -m tools.website_data --clips. overlap = temporal IoU with the matching label.",
+ "examples": [
+  {
+   "id": "failure_to_yield",
+   "video": "C3902.MP4",
+   "start": 169.5,
+   "end": 176.0,
+   "overlap": 0.97,
+   "caption": "A car drives through the crossing by the median while people are on it. The event runs from its front arriving to its rear leaving."
+  },
+  {
+   "id": "jaywalking",
+   "video": "C3902.MP4",
+   "start": 217.5,
+   "end": 226.5,
+   "overlap": 0.9,
+   "caption": "A pedestrian crosses the carriageway away from the crossings: from stepping onto the road to leaving it."
+  },
+  {
+   "id": "red_light",
+   "video": "C3902.MP4",
+   "start": 94.0,
+   "end": 110.0,
+   "overlap": 0.79,
+   "caption": "A moped arrives past the stop line while the top road's light (top right) is red; the event lasts until it leaves the junction."
+  },
+  {
+   "id": "stop_line",
+   "video": "C3905.MP4",
+   "start": 106.0,
+   "end": 118.0,
+   "overlap": 0.96,
+   "caption": "Dusk: a vehicle stopped past the stop line on red. The event ends when the light, read from the video, turns green."
+  },
+  {
+   "id": "solid_line_crossing",
+   "video": "C3902.MP4",
+   "start": 209.5,
+   "end": 217.5,
+   "overlap": 0.88,
+   "caption": "A car changes lane across a solid marking on the approach."
+  }
+ ],
+ "failures": [
+  {
+   "id": "fty_false_alarms",
+   "video": "C3902.MP4",
+   "start": 127.0,
+   "end": 135.0,
+   "title": "False alarms: failure_to_yield",
+   "caption": "Our rule calls three passes here: a vehicle crosses while someone is on the crossing. Our labeller called none of them, presumably because the people weren't in the vehicles' way; the rule has no notion of which part of a crossing lies in a vehicle's path. Overall, 23 of its 38 calls on the labelled videos have no matching label at IoU 0.5."
+  },
+  {
+   "id": "fty_missed_at_dusk",
+   "video": "C3905.MP4",
+   "start": 58.5,
+   "end": 74.0,
+   "title": "Missed: a run of failure_to_yield at dusk",
+   "caption": "Our labeller marked eight short events in 14 s; our rule reports none. The people are detected, but the rule counts only people whose feet are inside a crossing's outline (a margin around it made everyone waiting at the kerb count, so it was tuned to zero), and the people waiting at the top crossing's edge never are. On the lower-left crossing, where people are inside it, the cars creep at about half the speed the rule requires of a vehicle driving through."
+  },
+  {
+   "id": "jaywalking_merged",
+   "video": "C3902.MP4",
+   "start": 60.0,
+   "end": 75.0,
+   "title": "Boundaries: one long jaywalking event instead of several",
+   "caption": "People keep crossing outside the crossing. The labeller marks each crossing separately; overlapping same-class events merge into one segment (the task's rule), and gaps under 1 s join them, so we report one 46 s event where the labels have several short ones."
+  },
+  {
+   "id": "slc_false_alarm",
+   "video": "C3902.MP4",
+   "start": 221.5,
+   "end": 229.5,
+   "title": "False alarm: solid_line_crossing",
+   "caption": "Two calls with no label: a bus seen diagonally, whose box spans two lanes, so its bottom centre, where we place a vehicle, swings across the line between them; and a car moving from lane 2 to lane 3 where our labeller saw no violation. A box's bottom centre is only a proxy for where the wheels are."
+  }
+ ]
+}

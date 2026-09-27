@@ -1,0 +1,26 @@
+# Keep the live demo awake. Streamlit Community Cloud puts an app to sleep after about 12 hours
+# without a visitor, and only a browser counts: every 6 hours this opens the demo in a headless
+# browser and wakes it if needed (demo/keep_awake.py). It can also be started by hand from the
+# Actions tab.
+name: Keep the live demo awake
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  visit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install a headless browser
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Visit the demo
+        run: python demo/keep_awake.py https://hackathon-et-sbg32s8s84savvbzganrrk.streamlit.app

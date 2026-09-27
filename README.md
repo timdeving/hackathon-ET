@@ -12,6 +12,11 @@ produces:
 It runs offline on one NVIDIA GPU, with the organizers' harness (`run_submission.py`,
 `evaluate.py`) unchanged. Everything we built is in `src/`, reached through `solution.py`.
 
+- **Website:** https://akmaloio-wiut-traffic.static.hf.space (approach, data analysis, every sample
+  video annotated, the report)
+- **Live demo:** https://hackathon-et-sbg32s8s84savvbzganrrk.streamlit.app (upload a clip)
+- **Annotated videos:** https://huggingface.co/datasets/akmaloio/wiut-traffic-media
+
 ## Results on the sample videos
 
 Four samples (18 minutes, 3840×2160, 29.97 fps). We labelled two of them ourselves (C3902 and
@@ -213,6 +218,7 @@ python -m tools.eval_from_cache --rules jaywalking --set rules.jaywalking.min_se
 | `tools/check_frame_parity.py` | Checks that our decoder numbers frames exactly like the harness |
 | `tools/pin_requirements.sh` | Pins `requirements.txt` for Linux and Windows from `requirements.in` |
 | `tools/render_samples.py` | Annotated versions of whole videos (tracks, events, the light, the risk), for the website |
+| `tools/website_data.py` | The website's data: EDA and results JSON, heat maps, trajectories; `--clips` cuts its clips |
 | `demo/make_examples.py` | The live demo's ready-made results, from one-minute clips of the samples |
 
 ## Repository layout
@@ -232,7 +238,8 @@ src/
   postprocess/         merging and clean-up of event segments
   risk/                Part B: the risk estimator and time to collision
   visualize.py         drawing results on frames (the demo and the website; not the submission)
-demo/                  the live demo: a Streamlit app on the CPU profile, and its examples
+demo/                  the live demo: a Streamlit app on the CPU profile, its examples, keep_awake.py
+website/               the website: a static page (index.html, app.js), its data and pictures
 configs/               params.yaml, the scene map and its sources, profiles/ (the demo's)
 weights/               the exported detector
 data/                  our dev labels (dev_labels.json) and the label files they came from

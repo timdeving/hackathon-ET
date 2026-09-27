@@ -1,0 +1,11 @@
+{
+  "note": "Fill in: one entry per member. Links may be left empty.",
+  "members": [
+    {"name": "Member one", "role": "Role", "did": ["What they did", "Another thing"],
+     "github": "", "linkedin": "", "portfolio": "", "projects": ["A previous project"]},
+    {"name": "Member two", "role": "Role", "did": ["What they did"],
+     "github": "", "linkedin": "", "portfolio": "", "projects": []},
+    {"name": "Member three", "role": "Role", "did": ["What they did"],
+     "github": "", "linkedin": "", "portfolio": "", "projects": []}
+  ]
+}
